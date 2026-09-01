@@ -14,8 +14,9 @@ const CPM = [
 const TYPE_ORDER = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'];
 const TYPE_KO = {normal:'노말',fire:'불꽃',water:'물',electric:'전기',grass:'풀',ice:'얼음',fighting:'격투',poison:'독',ground:'땅',flying:'비행',psychic:'에스퍼',bug:'벌레',rock:'바위',ghost:'고스트',dragon:'드래곤',dark:'악',steel:'강철',fairy:'페어리'};
 const LEAGUES = {great:{name:'슈퍼리그',cap:1500,key:'great'},ultra:{name:'하이퍼리그',cap:2500,key:'ultra'},master:{name:'마스터리그',cap:Infinity,key:'master'}};
+const FORM_LABEL_KO = {normal:'기본',alola:'알로라',galarian:'가라르',hisuian:'히스이',paldea:'팔데아',male:'수컷',female:'암컷',attack:'어택폼',defense:'디펜스폼',speed:'스피드폼',altered:'어나더폼',origin:'오리진폼',incarnate:'화신폼',therian:'영물폼',plant:'초목도롱',sandy:'모래땅도롱',trash:'슈레도롱',meteor:'유성폼',core:'코어폼',ice_rider:'백마 탄 모습'};
 
-const state = {pokemon:[],byDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,maxEligible:false,ivCache:new Map(),dataDate:''};
+const state = {pokemon:[],byKey:new Map(),byDex:new Map(),defaultByDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,maxEligible:false,ivCache:new Map(),dataDate:''};
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
 const els = {search:$('#searchInput'),type:$('#typeFilter'),generation:$('#generationFilter'),feature:$('#featureFilter'),list:$('#pokemonList'),count:$('#resultCount'),loadMore:$('#loadMore'),detail:$('#detailPanel')};
@@ -33,17 +34,32 @@ function featurePills(pokemon) {
   if (pokemon.gigantamax) output.push('<span class="capability-pill max">GIGANTAMAX</span>');
   return output.join('');
 }
+function formLabel(pokemon) {
+  if(pokemon.formSlug==='normal'&&(state.byDex.get(pokemon.dex)||[]).some(form=>form.formSlug==='female'))return FORM_LABEL_KO.male;
+  const suffix=pokemon.name.replace(pokemon.baseName,'').replace(/[()]/g,'').trim();
+  return FORM_LABEL_KO[pokemon.formSlug]||suffix||pokemon.formSlug.replaceAll('_',' ');
+}
+function displayName(pokemon) {
+  if(pokemon.isDefault&&pokemon.formSlug==='normal'&&formLabel(pokemon)==='기본')return pokemon.name;
+  return pokemon.name===pokemon.baseName?`${pokemon.name} (${formLabel(pokemon)})`:pokemon.name;
+}
+function formSwitcherHtml(pokemon) {
+  const forms=state.byDex.get(pokemon.dex)||[];
+  if(forms.length<2)return'';
+  return `<div class="form-switch" aria-label="${esc(pokemon.baseName)} 폼 선택">${forms.map(form=>`<button type="button" class="form-chip ${form.speciesKey===pokemon.speciesKey?'active':''}" data-select-key="${esc(form.speciesKey)}" aria-pressed="${form.speciesKey===pokemon.speciesKey}">${esc(formLabel(form))}</button>`).join('')}</div>`;
+}
 
 async function init() {
   try {
     const [pokemonResponse,pvpResponse] = await Promise.all([fetch('data/pokemon.json'),fetch('data/pvp.json')]);
     if (!pokemonResponse.ok || !pvpResponse.ok) throw new Error('도감 데이터 응답을 받지 못했습니다.');
     const pokemonData=await pokemonResponse.json(); state.pvp=await pvpResponse.json();
-    state.pokemon=pokemonData.pokemon.sort((a,b)=>a.dex-b.dex); state.dataDate=pokemonData.updated;
-    state.byDex=new Map(state.pokemon.map(pokemon=>[pokemon.dex,pokemon]));
+    state.pokemon=pokemonData.pokemon.sort((a,b)=>a.dex-b.dex||Number(b.isDefault)-Number(a.isDefault)||a.name.localeCompare(b.name,'ko')); state.dataDate=pokemonData.updated;
+    state.byKey=new Map(state.pokemon.map(pokemon=>[pokemon.speciesKey,pokemon]));
+    for(const pokemon of state.pokemon){if(!state.byDex.has(pokemon.dex))state.byDex.set(pokemon.dex,[]);state.byDex.get(pokemon.dex).push(pokemon);if(pokemon.isDefault)state.defaultByDex.set(pokemon.dex,pokemon);}
     buildMoveIndex(); populateFilters(); bindGlobalEvents(); renderList();
-    const dex=Number(new URLSearchParams(location.hash.slice(1)).get('pokemon')),hasRoute=state.byDex.has(dex);
-    selectPokemon(hasRoute?dex:1,false);
+    const route=new URLSearchParams(location.hash.slice(1)).get('pokemon'),key=resolvePokemonKey(route),hasRoute=Boolean(key);
+    selectPokemon(key||state.defaultByDex.get(1)?.speciesKey,false);
     if(!hasRoute)document.body.classList.remove('show-detail');
   } catch (error) {
     console.error(error.stack || error);
@@ -73,17 +89,17 @@ function bindGlobalEvents() {
   els.feature.addEventListener('change',()=>{state.feature=els.feature.value;state.limit=36;renderList();});
   $('#clearFilters').addEventListener('click',()=>{state.query=state.type=state.generation=state.feature='';els.search.value=els.type.value=els.generation.value=els.feature.value='';state.limit=36;renderList();});
   els.loadMore.addEventListener('click',()=>{state.limit+=36;renderList();});
-  els.list.addEventListener('click',event=>{const button=event.target.closest('[data-select-dex]');if(button)navigateTo(Number(button.dataset.selectDex));});
+  els.list.addEventListener('click',event=>{const button=event.target.closest('[data-select-key]');if(button)navigateTo(button.dataset.selectKey);});
   els.detail.addEventListener('click',handleDetailClick);
   $('#openGuide').addEventListener('click',()=>$('#guideDialog').showModal());
   document.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|select|textarea/i.test(document.activeElement.tagName)){event.preventDefault();els.search.focus();}});
-  window.addEventListener('hashchange',()=>{const dex=Number(new URLSearchParams(location.hash.slice(1)).get('pokemon'));if(state.byDex.has(dex))selectPokemon(dex,false);else document.body.classList.remove('show-detail');});
+  window.addEventListener('hashchange',()=>{const key=resolvePokemonKey(new URLSearchParams(location.hash.slice(1)).get('pokemon'));if(key)selectPokemon(key,false);else document.body.classList.remove('show-detail');});
 }
 
 function filteredPokemon() {
   const query=normalize(state.query); const numeric=state.query.trim().replace(/^#/,'');
   return state.pokemon.filter(pokemon=>{
-    const matchesQuery=!query||normalize(pokemon.name).includes(query)||normalize(pokemon.en).includes(query)||(numeric&&String(pokemon.dex).startsWith(numeric));
+    const matchesQuery=!query||normalize(displayName(pokemon)).includes(query)||normalize(formLabel(pokemon)).includes(query)||normalize(pokemon.name).includes(query)||normalize(pokemon.en).includes(query)||normalize(pokemon.baseName).includes(query)||normalize(pokemon.baseEn).includes(query)||normalize(pokemon.formId).includes(query)||(numeric&&String(pokemon.dex).startsWith(numeric));
     const matchesType=!state.type||pokemon.types.some(type=>type.id===state.type);
     const matchesGeneration=!state.generation||String(pokemon.generation)===state.generation;
     const matchesFeature=!state.feature||(state.feature==='mega'&&pokemon.mega.length)||(state.feature==='dynamax'&&pokemon.dynamax)||(state.feature==='gigantamax'&&pokemon.gigantamax)||(state.feature==='legendary'&&['legendary','mythic'].includes(pokemon.class));
@@ -93,21 +109,25 @@ function filteredPokemon() {
 
 function renderList() {
   const results=filteredPokemon(),visible=results.slice(0,state.limit);
-  els.count.textContent=`${results.length.toLocaleString('ko-KR')}마리`;
+  els.count.textContent=`${results.length.toLocaleString('ko-KR')}개 폼`;
   els.loadMore.hidden=visible.length>=results.length;
   els.list.innerHTML=visible.length?visible.map(pokemon=>{
     const dots=pokemon.types.map(type=>`<i class="mini-type" ${typeAttrs(type)} title="${esc(type.ko)}"></i>`).join('');
-    return `<button type="button" class="pokemon-row ${state.selected?.dex===pokemon.dex?'active':''}" data-select-dex="${pokemon.dex}" role="option" aria-selected="${state.selected?.dex===pokemon.dex}">
-      <img class="pokemon-thumb" src="${esc(pokemon.image||'')}" alt="" loading="lazy"><span><strong>${esc(pokemon.name)}</strong><small>${padDex(pokemon.dex)} · ${esc(pokemon.en)}</small><span class="mini-types">${dots}</span></span>
+    return `<button type="button" class="pokemon-row ${state.selected?.speciesKey===pokemon.speciesKey?'active':''}" data-select-key="${esc(pokemon.speciesKey)}" role="option" aria-selected="${state.selected?.speciesKey===pokemon.speciesKey}">
+      <img class="pokemon-thumb" src="${esc(pokemon.image||'')}" alt="" loading="lazy"><span><strong>${esc(displayName(pokemon))}</strong><small>${padDex(pokemon.dex)} · ${esc(pokemon.en)}</small><span class="mini-types">${dots}</span></span>
       <span class="row-features">${pokemon.mega.length?'<i class="feature-dot">M</i>':''}${pokemon.gigantamax?'<i class="feature-dot max">GMAX</i>':pokemon.dynamax?'<i class="feature-dot max">MAX</i>':''}</span></button>`;
   }).join(''):'<p class="role-summary">조건에 맞는 포켓몬이 없습니다. 이름이나 필터를 바꿔보세요.</p>';
 }
 
-function navigateTo(dex) { location.hash=`pokemon=${dex}`; if(state.selected?.dex===dex)selectPokemon(dex,false); }
-function selectPokemon(dex,updateHash=true) {
-  const pokemon=state.byDex.get(dex); if(!pokemon)return;
+function resolvePokemonKey(value) {
+  if(value&&state.byKey.has(value))return value;
+  const dex=Number(value);return Number.isInteger(dex)?state.defaultByDex.get(dex)?.speciesKey:null;
+}
+function navigateTo(value) { const key=resolvePokemonKey(value);if(!key)return;const current=new URLSearchParams(location.hash.slice(1)).get('pokemon');if(current===key)selectPokemon(key,false);else location.hash=`pokemon=${encodeURIComponent(key)}`; }
+function selectPokemon(value,updateHash=true) {
+  const key=resolvePokemonKey(value),pokemon=state.byKey.get(key); if(!pokemon)return;
   state.selected=pokemon; state.maxEligible=false; state.mode='great';
-  if(updateHash) history.pushState(null,'',`#pokemon=${dex}`);
+  if(updateHash) history.pushState(null,'',`#pokemon=${encodeURIComponent(key)}`);
   renderList(); renderDetail(); document.body.classList.add('show-detail');
   if(innerWidth<=760) scrollTo({top:0,behavior:'auto'});
 }
@@ -115,19 +135,19 @@ function selectPokemon(dex,updateHash=true) {
 function getFamilyLevels(pokemon) {
   const parents=new Map();
   for(const item of state.pokemon) for(const evolution of item.evolutions) {
-    if(!parents.has(evolution.dex))parents.set(evolution.dex,[]); parents.get(evolution.dex).push(item.dex);
+    if(!parents.has(evolution.speciesKey))parents.set(evolution.speciesKey,[]); parents.get(evolution.speciesKey).push(item.speciesKey);
   }
-  const family=new Set([pokemon.dex]),queue=[pokemon.dex];
-  while(queue.length){const dex=queue.shift(),item=state.byDex.get(dex);for(const next of [...(item?.evolutions.map(e=>e.dex)||[]),...(parents.get(dex)||[])])if(!family.has(next)){family.add(next);queue.push(next);}}
-  const roots=[...family].filter(dex=>!(parents.get(dex)||[]).some(parent=>family.has(parent)));
+  const family=new Set([pokemon.speciesKey]),queue=[pokemon.speciesKey];
+  while(queue.length){const key=queue.shift(),item=state.byKey.get(key);for(const next of [...(item?.evolutions.map(e=>e.speciesKey)||[]),...(parents.get(key)||[])])if(!family.has(next)){family.add(next);queue.push(next);}}
+  const roots=[...family].filter(key=>!(parents.get(key)||[]).some(parent=>family.has(parent)));
   const levels=[],seen=new Set(),frontier=[...roots];
-  while(frontier.length){const dexLevel=[...new Set(frontier)].filter(dex=>!seen.has(dex));if(!dexLevel.length)break;const level=dexLevel.map(dex=>state.byDex.get(dex)).filter(Boolean);levels.push(level);level.forEach(item=>seen.add(item.dex));frontier.splice(0,frontier.length,...level.flatMap(item=>item.evolutions.map(e=>e.dex).filter(dex=>family.has(dex))));}
+  while(frontier.length){const keyLevel=[...new Set(frontier)].filter(key=>!seen.has(key));if(!keyLevel.length)break;const level=keyLevel.map(key=>state.byKey.get(key)).filter(Boolean);levels.push(level);level.forEach(item=>seen.add(item.speciesKey));frontier.splice(0,frontier.length,...level.flatMap(item=>item.evolutions.map(e=>e.speciesKey).filter(key=>family.has(key))));}
   return levels;
 }
 
 function finalEvolutions(pokemon) {
   const finals=[],seen=new Set();
-  function walk(item){if(!item||seen.has(item.dex))return;seen.add(item.dex);const next=item.evolutions.map(e=>state.byDex.get(e.dex)).filter(Boolean);if(!next.length)finals.push(item);else next.forEach(walk);}
+  function walk(item){if(!item||seen.has(item.speciesKey))return;seen.add(item.speciesKey);const next=item.evolutions.map(e=>state.byKey.get(e.speciesKey)).filter(Boolean);if(!next.length)finals.push(item);else next.forEach(walk);}
   walk(pokemon); return finals.length?finals:[pokemon];
 }
 
@@ -141,7 +161,7 @@ function archetype(pokemon) {
 
 function evolutionHtml(pokemon) {
   const levels=getFamilyLevels(pokemon);
-  return levels.map((level,index)=>`${index?'<span class="evo-arrow">→</span>':''}<span class="evo-stage">${level.map(item=>`<button type="button" class="evo-link ${item.dex===pokemon.dex?'current':''}" data-select-dex="${item.dex}"><img src="${esc(item.image||'')}" alt=""><strong>${esc(item.name)}</strong></button>`).join('')}</span>`).join('');
+  return levels.map((level,index)=>`${index?'<span class="evo-arrow">→</span>':''}<span class="evo-stage">${level.map(item=>`<button type="button" class="evo-link ${item.speciesKey===pokemon.speciesKey?'current':''}" data-select-key="${esc(item.speciesKey)}"><img src="${esc(item.image||'')}" alt=""><strong>${esc(displayName(item))}</strong></button>`).join('')}</span>`).join('');
 }
 
 function renderDetail() {
@@ -149,7 +169,7 @@ function renderDetail() {
   const stat=(label,key)=>`<div class="stat-box"><span>${label}</span><strong>${p.stats[key]}</strong><div class="stat-bar"><i style="width:${Math.round(p.stats[key]/maxStat*100)}%"></i></div></div>`;
   els.detail.innerHTML=`
     <button type="button" class="mobile-back" data-mobile-back>← 도감으로</button>
-    <article class="hero-card"><div class="hero-copy"><span class="dex-number">${padDex(p.dex)} · GENERATION ${p.generation||'–'}</span><h2>${esc(p.name)}</h2><p class="english-name">${esc(p.en)}</p><div class="type-row">${typePills(p)}</div><div class="capability-row">${featurePills(p)}</div></div><img class="hero-art" src="${esc(p.image||'')}" alt="${esc(p.name)}"></article>
+    <article class="hero-card"><div class="hero-copy"><span class="dex-number">${padDex(p.dex)} · GENERATION ${p.generation||'–'}</span><h2>${esc(displayName(p))}</h2><p class="english-name">${esc(p.en)}</p><div class="type-row">${typePills(p)}</div><div class="capability-row">${featurePills(p)}</div>${formSwitcherHtml(p)}</div><img class="hero-art" src="${esc(p.image||'')}" alt="${esc(displayName(p))}"></article>
     <div class="detail-grid">
       <section class="panel panel-pad"><div class="section-label"><div><h3>기본 능력치</h3><p>IV를 더하기 전 Pokémon GO 종족값</p></div><span class="score-pill">${role.name}</span></div><div class="stats-grid">${stat('공격','attack')}${stat('방어','defense')}${stat('체력','stamina')}</div><p class="role-summary">${role.text}</p></section>
       <section class="panel panel-pad"><div class="section-label"><div><h3>진화 계보</h3><p>같은 IV와 강화 레벨을 유지해 각각 다시 계산합니다</p></div></div><div class="evolution-chain">${evolutionHtml(p)}</div></section>
@@ -179,7 +199,7 @@ function bindIvEvents() {
 }
 
 function handleDetailClick(event) {
-  const select=event.target.closest('[data-select-dex]'); if(select){navigateTo(Number(select.dataset.selectDex));return;}
+  const select=event.target.closest('[data-select-key]'); if(select){navigateTo(select.dataset.selectKey);return;}
   if(event.target.closest('[data-mobile-back]')){history.replaceState(null,'',`${location.pathname}${location.search}`);document.body.classList.remove('show-detail');return;}
   const mode=event.target.closest('[data-mode]'); if(mode){state.mode=mode.dataset.mode;$$('[data-mode]',els.detail).forEach(button=>button.classList.toggle('active',button.dataset.mode===state.mode));$('#maxToggle').hidden=state.mode!=='max';updateIvResults();}
 }
@@ -199,7 +219,7 @@ function bestUnderCap(pokemon,ivs,cap) {
 }
 
 function ivRankData(pokemon,cap) {
-  const key=`${pokemon.dex}:${cap}`;
+  const key=`${pokemon.speciesKey}:${cap}`;
   if(state.ivCache.has(key)){const cached=state.ivCache.get(key);state.ivCache.delete(key);state.ivCache.set(key,cached);return cached;}
   const rows=[];
   for(let attack=0;attack<=15;attack++)for(let defense=0;defense<=15;defense++)for(let stamina=0;stamina<=15;stamina++){
@@ -221,7 +241,7 @@ function evaluate(pokemon,mode=state.mode) {
     const league=LEAGUES[mode],rank=ivRankData(pokemon,league.cap).byIv.get(`${state.ivs.attack}-${state.ivs.defense}-${state.ivs.stamina}`);
     const grade=rank.rank<=41?'S':rank.rank<=410?'A':rank.rank<=1229?'B':'C'; const top=rank.rank/4096*100;
     const maxPerfect=bestUnderCap(pokemon,{attack:15,defense:15,stamina:15},league.cap); const uncapped=league.cap!==Infinity&&maxPerfect.level===50&&maxPerfect.cp<league.cap;
-    const meta=state.pvp.leagues[league.key]?.[String(pokemon.dex)];
+    const meta=state.pvp.leagues[league.key]?.[pokemon.speciesKey];
     let why=uncapped?`${pokemon.name}은(는) 50레벨에서도 CP 제한에 여유가 있어 낮은 공격보다 15/15/15에 가까운 개체가 유리합니다.`:`CP 제한 리그에서는 공격이 CP를 더 많이 올리므로, 공격을 낮추고 방어·체력을 높이면 더 높은 레벨과 능력치 곱을 확보하는 경우가 많습니다.`;
     if(mode==='master')why='마스터리그는 CP 제한이 없어 세 능력치를 모두 높이는 것이 원칙이며, 특히 공격 IV는 CMP 선공과 공격 breakpoint에 영향을 줄 수 있습니다.';
     why+=meta?` 현재 종족 메타 점수는 ${meta.score}점이며 추천 순위는 ${meta.rank}위입니다. 개체 순위와 종족의 메타 활용도는 서로 다른 지표입니다.`:' 현재 공개 메타 랭킹에 대표 형태가 없어 개체 순위만 판정했습니다.';
@@ -245,8 +265,8 @@ function updateIvResults() {
   $('#appraisalStars').textContent=app.stars; $('#appraisalPercent').textContent=`${app.total}/45 · ${app.percent.toFixed(1)}%`;
   const maxToggle=$('#maxToggle'); if(maxToggle){maxToggle.hidden=state.mode!=='max';const checkbox=$('#maxEligible');checkbox.disabled=!isMaxCapable(p);checkbox.checked=state.maxEligible&&isMaxCapable(p);}
   $('#ivResult').innerHTML=`<div class="grade-row"><span class="grade ${gradeClass(result.grade)}">${result.grade}</span><div><h4>${esc(result.title)}</h4><p>${esc(result.subtitle)}</p></div></div><div class="result-metrics">${result.metrics.map(([label,value])=>`<div class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><p class="explanation">${esc(result.explanation)}</p><p class="caution">${esc(result.caution)}</p>`;
-  const finals=[...new Map([p,...finalEvolutions(p)].map(item=>[item.dex,item])).values()];
-  $('#projectionGrid').innerHTML=finals.map(item=>{const value=evaluate(item);return`<button type="button" class="projection-card" data-select-dex="${item.dex}"><img src="${esc(item.image||'')}" alt=""><span><strong>${esc(item.name)}</strong><small>${esc(value.title)}</small></span><b>${value.grade}</b></button>`;}).join('');
+  const finals=[...new Map([p,...finalEvolutions(p)].map(item=>[item.speciesKey,item])).values()];
+  $('#projectionGrid').innerHTML=finals.map(item=>{const value=evaluate(item);return`<button type="button" class="projection-card" data-select-key="${esc(item.speciesKey)}"><img src="${esc(item.image||'')}" alt=""><span><strong>${esc(displayName(item))}</strong><small>${esc(value.title)}</small></span><b>${value.grade}</b></button>`;}).join('');
 }
 
 function moveForPokemon(pokemon,id,kind) {
@@ -267,7 +287,7 @@ function bestPve(pokemon) {
   return combos.sort((a,b)=>b.score-a.score)[0];
 }
 function pvpMoveCard(pokemon,key,label) {
-  const meta=state.pvp.leagues[key]?.[String(pokemon.dex)];
+  const meta=state.pvp.leagues[key]?.[pokemon.speciesKey];
   if(!meta)return`<article class="move-set"><div class="move-set-head"><strong>${label}</strong><span class="score-pill">자료 없음</span></div><p class="move-caption">현재 대표 형태가 공개 전체 랭킹에 포함되지 않았습니다.</p></article>`;
   return`<article class="move-set"><div class="move-set-head"><strong>${label}</strong><span class="score-pill">메타 ${meta.score} · #${meta.rank}</span></div>${meta.moves.map((id,index)=>moveLine(pokemon,id,index?'charged':'fast',index?'차지':'노말')).join('')}<p class="move-caption">PvPoke 전체 리그 시뮬레이션의 현재 추천입니다. 보통 차지 기술 2개 해방을 전제로 합니다.</p></article>`;
 }
