@@ -2,6 +2,8 @@
 
 Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV 가치를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
 
+현재 버전: **1.0** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.0) · [변경 기록](CHANGELOG.md)
+
 ## 제공 기능
 
 - 한국어·영문명·도감 번호 검색과 타입/세대/메가/다이맥스 필터
