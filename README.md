@@ -25,6 +25,10 @@ python3 -m http.server 8000
 
 이후 `http://localhost:8000`을 엽니다.
 
+## 로드맵
+
+다음 구현 후보와 우선순위, 완료 조건은 [TODO.md](TODO.md)에서 관리합니다.
+
 ## GitHub Pages 배포
 
 1. 이 디렉터리를 GitHub 저장소의 `main` 브랜치에 올립니다.
