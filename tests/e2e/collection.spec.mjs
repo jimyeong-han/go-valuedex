@@ -151,6 +151,65 @@ test('edits all specimen metadata and filters the saved card', async ({ page }) 
   await expect(page.locator('#collectionList')).toContainText('필터에 맞는 개체가 없습니다');
 });
 
+test('selects and preserves APEX status-exclusive moves in the record editor', async ({ page }) => {
+  desktopOnly(page);
+  await openCollectionApp(page, '249:normal');
+  await seedRecords(page, [{
+    speciesKey: '249:normal',
+    nickname: 'APEX 루기아',
+    ivs: { attack: 15, defense: 14, stamina: 13 },
+    level: 40,
+    moves: { fast: 'EXTRASENSORY', charged: ['AEROBLAST'] }
+  }]);
+
+  await page.locator('#openCollection').click();
+  await page.locator('[data-record-edit]').click();
+  await expect(page.locator('#recordDialog')).toBeVisible();
+  await expect(page.locator('#recordSpecies')).toHaveValue('249:normal');
+  await expect(page.locator('#recordChargedMove1')).toHaveValue('AEROBLAST');
+
+  await page.locator('#recordStatus').selectOption('shadow');
+  await expect(page.locator('#recordChargedMove1')).toHaveValue('AEROBLAST');
+  await expect(page.locator('#recordApex')).toBeEnabled();
+  await expect(page.locator('#recordChargedMove1 option[value="FRUSTRATION"]')).toHaveText('화풀이 · 상태 전용');
+  await expect(page.locator('#recordChargedMove1 option[value="FRUSTRATION"]')).toHaveCount(1);
+  await expect(page.locator('#recordChargedMove1 option[value="AEROBLAST_PLUS"]')).toHaveCount(0);
+
+  await page.locator('#recordApex').check();
+  await expect(page.locator('#recordChargedMove1')).toHaveValue('AEROBLAST');
+  await expect(page.locator('#recordChargedMove1 option[value="AEROBLAST_PLUS"]')).toHaveText('에어로블라스트+ · 상태 전용');
+  await expect(page.locator('#recordChargedMove1 option[value="AEROBLAST_PLUS"]')).toHaveCount(1);
+  await page.locator('#recordChargedMove1').selectOption('AEROBLAST_PLUS');
+  await page.locator('#recordChargedMove2').selectOption('');
+  await page.locator('#recordForm button[type="submit"]').click();
+
+  await expect(page.locator('#recordDialog')).toBeHidden();
+  await expect(page.locator('#appToast')).toContainText('보유 개체 정보를 저장했습니다');
+  const records = await readIndexedDb(page);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    revision: 2,
+    speciesKey: '249:normal',
+    status: 'shadow',
+    apex: true,
+    moves: { fast: 'EXTRASENSORY', charged: ['AEROBLAST_PLUS'] }
+  });
+
+  await page.locator('[data-record-edit]').click();
+  await expect(page.locator('#recordStatus')).toHaveValue('shadow');
+  await expect(page.locator('#recordApex')).toBeChecked();
+  await expect(page.locator('#recordChargedMove1')).toHaveValue('AEROBLAST_PLUS');
+  await page.locator('#recordChargedMove1').selectOption('AEROBLAST');
+  await page.locator('#recordStatus').selectOption('purified');
+  await expect(page.locator('#recordChargedMove1')).toHaveValue('AEROBLAST');
+  await expect(page.locator('#recordApex')).not.toBeChecked();
+  await expect(page.locator('#recordApex')).toBeDisabled();
+  await expect(page.locator('#recordChargedMove1 option[value="RETURN"]')).toHaveText('은혜갚기 · 상태 전용');
+  await expect(page.locator('#recordChargedMove1 option[value="RETURN"]')).toHaveCount(1);
+  await expect(page.locator('#recordChargedMove1 option[value="AEROBLAST_PLUS_PLUS"]')).toHaveText('에어로블라스트++ · 상태 전용');
+  await expect(page.locator('#recordChargedMove1 option[value="AEROBLAST_PLUS_PLUS"]')).toHaveCount(1);
+});
+
 test('enforces a two-to-four comparison and switches comparison modes', async ({ page }) => {
   desktopOnly(page);
   await openCollectionApp(page, '6:normal');
@@ -217,7 +276,7 @@ test('round-trips a JSON download and rejects an invalid JSON atomically', async
   await page.locator('#exportCollectionJson').click();
   const backup = await downloadBuffer(await downloadPromise);
   const envelope = JSON.parse(backup.toString('utf8'));
-  expect(envelope).toMatchObject({ format: 'go-valuedex-collection', formatVersion: 1, recordCount: 2 });
+  expect(envelope).toMatchObject({ format: 'go-valuedex-collection', formatVersion: 1, appVersion: '1.5.0', recordCount: 2 });
   expect(envelope.records.sort((left, right) => left.id.localeCompare(right.id))).toEqual(original);
 
   page.once('dialog', dialog => dialog.accept());
@@ -359,7 +418,7 @@ test('uses completed Hyper Training targets for evaluation while quick save pres
     },
     effectiveIvs: targetIvs
   });
-  await expect(page.locator('#appraisalPercent')).toHaveText('31/45 · 68.9%');
+  await expect(page.locator('#appraisalPercent')).toHaveText('IV 완성도 31/45 · 68.9%');
   await expect(page.locator('#scenarioCompare')).toContainText('대단한 특훈 전후 비교');
   await expect(page.locator('#ivResult .caution')).toContainText('이 형태로는 참가할 수 없습니다');
 
@@ -535,7 +594,7 @@ test('keeps valid records usable and exports unreadable recovery originals', asy
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#exportCollectionRecovery').click();
   const recovery = JSON.parse((await downloadBuffer(await downloadPromise)).toString('utf8'));
-  expect(recovery).toMatchObject({format: 'go-valuedex-recovery', formatVersion: 1});
+  expect(recovery).toMatchObject({format: 'go-valuedex-recovery', formatVersion: 1, appVersion: '1.5.0'});
   expect(recovery.entries).toHaveLength(1);
   expect(recovery.entries[0]).toMatchObject({
     id: 'future-row',

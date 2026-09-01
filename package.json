@@ -1,14 +1,15 @@
 {
   "name": "go-valuedex",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Browser regression tests for the GO ValueDex GitHub Pages app",
   "scripts": {
     "serve:e2e": "node tests/e2e/server.mjs",
     "test": "npm run test:unit && npm run test:browser",
-    "test:unit": "npm run test:mechanics && npm run test:collection",
+    "test:unit": "npm run test:mechanics && npm run test:collection && npm run test:pve-boss",
     "test:mechanics": "node scripts/mechanics-tests.mjs",
     "test:collection": "node scripts/collection-tests.mjs",
+    "test:pve-boss": "node scripts/pve-boss-tests.mjs",
     "test:browser": "playwright test",
     "test:e2e": "playwright test",
     "test:e2e:desktop": "playwright test --project=desktop-chromium",

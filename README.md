@@ -2,17 +2,20 @@
 
 Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활용도를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
 
-현재 버전: **1.4** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.4) · [변경 기록](CHANGELOG.md)
+현재 버전: **1.5** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.5) · [변경 기록](CHANGELOG.md)
 
 ## 제공 기능
 
-- 1,188개 평가 폼의 한국어·영문명·도감 번호 검색과 타입/세대/메가/다이맥스 필터
+- 1,188개 평가 폼의 한국어·영문명·도감 번호 검색과 타입/`세대 (지역)`/메가/다이맥스 필터
 - 일반·지역·전투 폼을 독립적으로 선택하고 공유할 수 있는 폼별 URL
 - 공격·방어·체력 `0–15` 슬라이더 및 현재 강화 레벨 입력
+- 모든 종에 공통인 IV 완성도와 같은 종 15/15/15 대비 포켓몬마다 달라지는 능력치 곱 비율 분리 표시
 - PvP·중립 레이드 화력·Mega·Max 근거를 분리한 `핵심 실전용 / 조건부 실전용 / 수집·관상 중심` 분류
 - 슈퍼·하이퍼·마스터리그의 4,096개 IV 조합 전수 순위
 - PvP 개체 적합도와 해당 종의 메타 활용도를 분리한 설명
 - 레이드 PvE 공격 우선 평가 및 중립 사이클 기술 추천
+- 보스·메가/원시 폼, 난이도, 보스 기술, 날씨, HP·CPM·타이머를 지정하는 레이드 보스별 PvE 분석
+- 전체 도감 또는 내 보유함의 실제 IV·레벨·기술 기준 장기 사이클 DPS·TDO·이론 처치시간·최소 인원·공격 IV breakpoint 비교
 - 현재 형태와 모든 최종 진화체에 동일 IV를 적용한 가치 비교
 - 클릭 가능한 진화 계보
 - PvP 리그별 추천 기술과 엘리트 기술 표시
@@ -22,7 +25,8 @@ Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활�
 - 정화 전후 IV·레벨·CP·리그 가치 미리보기와 APEX 루기아·칠색조 예외 처리
 - 금색·은색병뚜껑 목표 IV, 과제 수, 특훈 전후 가치와 CP 제한 초과 경고
 - 버전형 JSON Schema, 출처 URL·수집 시각·SHA-256과 대량 변경 방지 검사
-- 데스크톱·390px 모바일 Playwright CI와 검증 성공 후에만 실행되는 GitHub Pages 배포
+- 데스크톱·390px 모바일과 최소 320px 내비게이션 Playwright CI, 검증 성공 후에만 실행되는 GitHub Pages 배포
+- 버전 태그가 검증된 `main` 커밋과 일치할 때 `CHANGELOG.md` 패치노트로 GitHub Release 자동 발행
 - 현재 폼·상태·IV·레벨·기술·Max 자격·특훈 계획을 한 번에 저장하는 로컬 보유함
 - 별명·즐겨찾기·태그·메모 편집과 상태·태그 필터, PvP·PvE·Max·Mega 용도별 정렬
 - 같은 종 또는 다른 종의 보유 개체 2~4마리 비교
@@ -83,6 +87,8 @@ npm run test:browser
 - [Pokémon GO API](https://github.com/pokemon-go-api/pokemon-go-api): 한국어 이름, GO 종족값, 진화, 기술, 메가 형태
 - [PvPoke](https://github.com/pvpoke/pvpoke): 현재 PvP 리그 랭킹과 추천 기술
 - [PokeMiners Game Masters](https://github.com/PokeMiners/game_masters): 폼별 정화 비용과 그림자·정화 기술
+- [Niantic 도움말](https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/2187-what-are-raid-battles/): 레이드 종류와 전투·날씨·Mega 부스트의 공식 규칙
+- [Bulbapedia Raid Battle](https://bulbapedia.bulbagarden.net/wiki/Raid_Battle_(GO)): 공식 미공개 레이드 HP·CPM·제한시간의 커뮤니티 검증 프리셋
 - [Serebii Max Battles](https://www.serebii.net/pokemongo/maxbattles.shtml): Pokémon GO에서 확인된 다이맥스·거다이맥스 가능 종
 - [PokéAPI sprites](https://github.com/PokeAPI/sprites): GO 전용 이미지가 없는 포켓몬의 대체 이미지
 
@@ -93,7 +99,10 @@ npm run test:browser
 - PvP IV 순위는 CP 제한 이하 최고 레벨에서 `실공격 × 실방어 × 정수 HP`를 비교합니다.
 - 포켓몬 레벨은 1–50, 0.5 단위이며 베스트 파트너의 일시적 51레벨은 포함하지 않습니다.
 - PvP IV 1위가 모든 대면전에서 최선이라는 의미는 아닙니다. CMP, breakpoint, bulkpoint와 팀 조합에 따라 결과가 바뀔 수 있습니다.
-- PvE 추천은 자속 보정을 포함한 중립 사이클 이론값입니다. 날씨, 보스 상성/방어, 피격 에너지와 실제 breakpoint는 반영하지 않습니다.
+- 기본 PvE 추천은 자속 보정을 포함한 중립 사이클 이론값입니다. 별도의 보스 분석은 타입 상성·날씨·보스 방어·공격 IV breakpoint를 반영하므로 두 값을 직접 비교하지 마세요.
+- 보스 분석 DPS는 에너지 상한 100에서 넘친 에너지는 버리고, 사용 뒤 남은 에너지는 다음 사이클로 이월하는 장기 평균입니다. 피격으로 얻는 에너지와 유한 전투 마지막의 남은 에너지는 반영하지 않습니다. 원본 데이터에 사용 가능한 PvE 차지 에너지가 없는 기술(예: 발악)은 임의 추정하지 않고 분석에서 제외합니다. 보스의 노말·차지 기술을 모두 지정했을 때만 예상 TDO를 계산하며, 하나라도 모르면 단순 내구 기반 TDO 지수를 표시합니다.
+- 레이드 보스별 HP·CPM·제한시간은 공식 실시간 피드가 아닌 수정 가능한 커뮤니티 검증 프리셋입니다. 이론 처치시간은 회피·재입장·우정·파티 파워·통신 지연·보스 AI를 제외합니다.
+- IV 완성도는 `(공격 IV + 방어 IV + 체력 IV) / 45`라서 같은 IV면 모든 종에서 같습니다. 별도의 `15/15/15 대비 능력치 곱`은 `(종족값 + 현재 IV)` 세 능력치의 곱을 같은 종 완벽 개체의 곱과 비교하므로 포켓몬마다 달라지지만, 서로 다른 종의 강함이나 PvE 가치를 비교하는 점수는 아닙니다.
 - 다이맥스 자격은 종이 아니라 개별 포켓몬에 붙습니다. 지원 종의 일반 개체는 맥스배틀에 사용할 수 없습니다.
 - 진화하면 IV와 레벨은 유지되지만 CP와 종족값 기반 순위는 달라집니다.
 - 폼별 PvP 정보는 도감 번호만으로 추정하지 않고 종족값·타입·기술이 정확히 일치할 때만 연결합니다.

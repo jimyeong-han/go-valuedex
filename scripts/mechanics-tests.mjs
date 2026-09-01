@@ -7,6 +7,7 @@ const mechanics = require('../mechanics.js');
 const {
   DEFAULT_CPM,
   appraisalFor,
+  speciesStatRetention,
   statsAt,
   bestUnderCap,
   applyStatusModifiers,
@@ -69,6 +70,20 @@ test('appraisalFor clamps IV input and reports normalization reason codes', () =
   assert.ok(result.reasonCodes.includes('IV_ATTACK_CLAMPED'));
   assert.ok(result.reasonCodes.includes('IV_DEFENSE_CLAMPED'));
   assert.ok(result.reasonCodes.includes('IV_STAMINA_ROUNDED'));
+});
+
+test('speciesStatRetention makes the same IV species-specific without redefining IV perfection', () => {
+  const ivs = {attack: 10, defense: 10, stamina: 10};
+  const bulbasaurRetention = speciesStatRetention(bulbasaur, ivs);
+  const mewtwoRetention = speciesStatRetention(
+    {stats: {attack: 300, defense: 182, stamina: 214}},
+    ivs
+  );
+
+  assert.equal(appraisalFor(ivs).percent, 66.66666666666666);
+  closeTo(bulbasaurRetention.percent, 89.19000798700047);
+  closeTo(mewtwoRetention.percent, 93.8207020888288);
+  assert.notEqual(bulbasaurRetention.percent, mewtwoRetention.percent);
 });
 
 test('statsAt accepts both a CPM table and a caller CPM function', () => {

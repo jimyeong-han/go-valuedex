@@ -1,0 +1,86 @@
+name: Publish verified release
+
+on:
+  workflow_run:
+    workflows: [Quality and GitHub Pages]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the verified revision with tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Find a release tag on the verified commit
+        id: release_tag
+        env:
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          git fetch --force --tags origin
+          tag="$(git tag --points-at "$VERIFIED_SHA" \
+            | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' \
+            | sort -V \
+            | tail -n 1 || true)"
+          if [[ -z "$tag" ]]; then
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            echo 'No version tag points to the verified commit.'
+            exit 0
+          fi
+
+          version="${tag#v}"
+          normalized_version="$version"
+          if [[ "$normalized_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            normalized_version="${normalized_version}.0"
+          fi
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$package_version" != "$normalized_version" ]]; then
+            echo "Tag $tag does not match package version $package_version." >&2
+            exit 1
+          fi
+          echo 'publish=true' >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build release notes from the changelog
+        if: steps.release_tag.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.release_tag.outputs.version }}
+        shell: bash
+        run: |
+          awk -v version="$VERSION" '
+            index($0, "## [" version "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+
+      - name: Publish the GitHub Release once
+        if: steps.release_tag.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release_tag.outputs.tag }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; leaving it unchanged."
+          else
+            gh release create "$TAG" \
+              --verify-tag \
+              --title "GO ValueDex $TAG" \
+              --notes-file release-notes.md
+          fi

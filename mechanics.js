@@ -268,6 +268,29 @@
     };
   }
 
+  function speciesStatRetention(pokemon, ivInput) {
+    const normalizedIvs = normalizeIvs(ivInput);
+    const normalizedStats = normalizeBaseStats(pokemon);
+    const currentProduct = IV_KEYS.reduce(
+      (product, key) => product * (normalizedStats.stats[key] + normalizedIvs.ivs[key]),
+      1
+    );
+    const perfectProduct = IV_KEYS.reduce(
+      (product, key) => product * (normalizedStats.stats[key] + 15),
+      1
+    );
+    const reasonCodes = unique([...normalizedIvs.codes, ...normalizedStats.codes]);
+
+    return {
+      ivs: {...normalizedIvs.ivs},
+      currentProduct,
+      perfectProduct,
+      percent: perfectProduct > 0 ? currentProduct / perfectProduct * 100 : 0,
+      valid: !reasonCodes.some(code => code.endsWith('_INVALID')),
+      reasonCodes
+    };
+  }
+
   function statsAt(pokemon, ivInput, levelInput, cpmSource = DEFAULT_CPM) {
     const config = createCpmConfig(cpmSource);
     const normalizedLevel = normalizeLevelForConfig(levelInput, config);
@@ -562,6 +585,7 @@
     REASON_CODES,
     STATUS_MODIFIERS,
     appraisalFor,
+    speciesStatRetention,
     statsAt,
     bestUnderCap,
     applyStatusModifiers,

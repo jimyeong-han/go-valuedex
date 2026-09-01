@@ -14,6 +14,9 @@ test.describe('GitHub Pages shell and baseline Pokédex regressions', () => {
     expect((await request.get(new URL('mechanics.js', baseURL).href)).status()).toBe(200);
     expect((await request.get(new URL('collection.js', baseURL).href)).status()).toBe(200);
     expect((await request.get(new URL('collection.css', baseURL).href)).status()).toBe(200);
+    expect((await request.get(new URL('pve-boss.js', baseURL).href)).status()).toBe(200);
+    expect((await request.get(new URL('boss-analysis.js', baseURL).href)).status()).toBe(200);
+    expect((await request.get(new URL('boss.css', baseURL).href)).status()).toBe(200);
     expect((await request.get(new URL('schemas/pokemon.schema.json', baseURL).href)).status()).toBe(200);
     await expect(page).toHaveTitle('GO ValueDex — Pokémon GO 개체값·실전 도감');
     await expect(page.locator('.sidebar-head h1')).toHaveText('개체값·실전 도감');
@@ -80,6 +83,19 @@ test.describe('GitHub Pages shell and baseline Pokédex regressions', () => {
     await page.locator('#maxEligible').check();
     await expect(page.locator('#ivResult h4')).not.toContainText('미지원');
     await expect(page.locator('#transformationGrid')).toContainText('거다이맥스');
+  });
+
+  test('separates universal IV perfection from species-adjusted stat retention', async ({ page }) => {
+    await openDex(page, '6:normal');
+    await expect(page.locator('#appraisalPercent')).toHaveText('IV 완성도 30/45 · 66.7%');
+    const charizardRetention=await page.locator('#statRetention').textContent();
+    expect(charizardRetention).toMatch(/^15\/15\/15 대비 능력치 곱 \d+\.\d{2}%$/);
+
+    await selectSpecies(page, '150:normal');
+    await expect(page.locator('#appraisalPercent')).toHaveText('IV 완성도 30/45 · 66.7%');
+    const mewtwoRetention=await page.locator('#statRetention').textContent();
+    expect(mewtwoRetention).toMatch(/^15\/15\/15 대비 능력치 곱 \d+\.\d{2}%$/);
+    expect(mewtwoRetention).not.toBe(charizardRetention);
   });
 
   test('preserves the selected league in both evolution navigation paths', async ({ page }) => {

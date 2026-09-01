@@ -1,11 +1,13 @@
 const Mechanics = window.ValueDexMechanics;
 if(!Mechanics)throw new Error('개체값 계산 모듈을 불러오지 못했습니다.');
 const Collection = window.ValueDexCollection;
+const APP_VERSION = '1.5.0';
 
 const TYPE_ORDER = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'];
 const TYPE_KO = {normal:'노말',fire:'불꽃',water:'물',electric:'전기',grass:'풀',ice:'얼음',fighting:'격투',poison:'독',ground:'땅',flying:'비행',psychic:'에스퍼',bug:'벌레',rock:'바위',ghost:'고스트',dragon:'드래곤',dark:'악',steel:'강철',fairy:'페어리'};
 const LEAGUES = {great:{name:'슈퍼리그',cap:1500,key:'great'},ultra:{name:'하이퍼리그',cap:2500,key:'ultra'},master:{name:'마스터리그',cap:Infinity,key:'master'}};
 const FORM_LABEL_KO = {normal:'기본',alola:'알로라',galarian:'가라르',hisuian:'히스이',paldea:'팔데아',male:'수컷',female:'암컷',attack:'어택폼',defense:'디펜스폼',speed:'스피드폼',altered:'어나더폼',origin:'오리진폼',incarnate:'화신폼',therian:'영물폼',plant:'초목도롱',sandy:'모래땅도롱',trash:'슈레도롱',meteor:'유성폼',core:'코어폼',ice_rider:'백마 탄 모습'};
+const GENERATION_REGION_KO = Object.freeze({1:'관동',2:'성도',3:'호연',4:'신오',5:'하나',6:'칼로스',7:'알로라',8:'가라르',9:'팔데아'});
 
 const state = {pokemon:[],byKey:new Map(),byDex:new Map(),defaultByDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,maxEligible:false,maxKind:'none',condition:'normal',purifyTrainerLevel:25,apex:false,training:{capType:'none',silverStat:'attack',target:{attack:10,defense:10,stamina:10},goodBuddy:false,phase:'planned'},ivCache:new Map(),utilityCache:new Map(),dataDate:'',collection:{repo:null,records:[],recovery:[],query:'',status:'',tag:'',sort:'updated',favorite:false,limit:100,compareMode:false,selectedIds:new Set(),compareView:'great',editing:null,error:'',metricCache:new Map()}};
 const $ = (selector, root=document) => root.querySelector(selector);
@@ -71,7 +73,7 @@ function buildMoveIndex() {
 function populateFilters() {
   els.type.insertAdjacentHTML('beforeend',TYPE_ORDER.map(type=>`<option value="${type}">${TYPE_KO[type]}</option>`).join(''));
   const generations=[...new Set(state.pokemon.map(p=>p.generation).filter(Boolean))].sort((a,b)=>a-b);
-  els.generation.insertAdjacentHTML('beforeend',generations.map(gen=>`<option value="${gen}">${gen}세대</option>`).join(''));
+  els.generation.insertAdjacentHTML('beforeend',generations.map(gen=>`<option value="${gen}">${gen}세대${GENERATION_REGION_KO[gen]?` (${GENERATION_REGION_KO[gen]})`:''}</option>`).join(''));
 }
 
 function bindGlobalEvents() {
@@ -208,7 +210,7 @@ function renderDetail() {
       <section class="panel panel-pad"><div class="section-label"><div><h3>기본 능력치와 실전 분류</h3><p>IV를 더하기 전 종족값과 현재 데이터 기준 활용도</p></div><span class="score-pill">${role.name}</span></div><div class="stats-grid">${stat('공격','attack')}${stat('방어','defense')}${stat('체력','stamina')}</div><p class="role-summary">${role.text}</p><div class="utility-summary ${utility.key}"><strong>${esc(utility.label)}</strong><p>${esc(utility.text)}</p>${utility.evolution?`<span>${esc(utility.evolution)}</span>`:''}</div></section>
       <section class="panel panel-pad"><div class="section-label"><div><h3>진화 계보</h3><p>같은 IV와 강화 레벨을 유지해 각각 다시 계산합니다</p></div></div><div class="evolution-chain">${evolutionHtml(p)}</div></section>
       <section class="panel iv-lab">
-        <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력 슬라이더를 움직이면 즉시 다시 계산합니다.</p></div><div class="iv-head-actions"><button id="quickSave" class="quick-save" type="button">현재 개체 저장</button><div class="appraisal"><b id="appraisalStars">–</b><span id="appraisalPercent">–</span></div></div></div>
+        <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력 슬라이더를 움직이면 즉시 다시 계산합니다.</p></div><div class="iv-head-actions"><button id="quickSave" class="quick-save" type="button">현재 개체 저장</button><div class="appraisal"><b id="appraisalStars">–</b><span class="appraisal-values"><span id="appraisalPercent">IV 완성도 –</span><span id="statRetention">15/15/15 대비 능력치 곱 –</span></span></div></div></div>
         ${statusSelectorHtml(p)}
         <div class="mode-tabs" role="tablist">${modeTab('great','슈퍼리그')}${modeTab('ultra','하이퍼리그')}${modeTab('master','마스터리그')}${modeTab('pve','레이드 PvE')}${modeTab('max','맥스배틀')}</div>
         <div class="iv-content"><div class="slider-panel">
@@ -366,8 +368,8 @@ function updateScenarioControls(pokemon) {
   kindSelect.value=state.maxKind==='none'?(pokemon.dynamax?'dynamax':'gigantamax'):state.maxKind;kindSelect.hidden=!checkbox.checked||(!(pokemon.dynamax&&pokemon.gigantamax)&&recordMaxKindSupported(state.maxKind,pokemon));kindSelect.disabled=shadow;
 }
 function updateIvResults() {
-  syncTrainingTargets();const p=state.selected,snapshot=effectiveStateSnapshot(),result=evaluate(p,state.mode,snapshot),app=Mechanics.appraisalFor(snapshot.ivs);updateScenarioControls(p);
-  $('#appraisalStars').textContent=app.stars; $('#appraisalPercent').textContent=`${app.total}/45 · ${app.percent.toFixed(1)}%`;
+  syncTrainingTargets();const p=state.selected,snapshot=effectiveStateSnapshot(),result=evaluate(p,state.mode,snapshot),app=Mechanics.appraisalFor(snapshot.ivs),retention=Mechanics.speciesStatRetention(p,snapshot.ivs);updateScenarioControls(p);
+  $('#appraisalStars').textContent=app.stars; $('#appraisalPercent').textContent=`IV 완성도 ${app.total}/45 · ${app.percent.toFixed(1)}%`;$('#statRetention').textContent=`15/15/15 대비 능력치 곱 ${retention.percent.toFixed(2)}%`;
   $('#ivResult').innerHTML=`<div class="grade-row"><span class="grade ${gradeClass(result.grade)}">${result.grade}</span><div><h4>${esc(result.title)}</h4><p>${esc(result.subtitle)}</p></div></div><div class="result-metrics">${result.metrics.map(([label,value])=>`<div class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><p class="explanation">${esc(result.explanation)}</p><p class="caution">${esc(result.caution)}</p>`;
   renderScenarioCompare(p);
   const finals=[...new Map([p,...finalEvolutions(p)].map(item=>[item.speciesKey,item])).values()];
@@ -474,8 +476,10 @@ function bindCollectionEvents() {
   $('#clearCollection').addEventListener('click',clearCollection);
   $('#recordForm').addEventListener('submit',saveRecordEdits);
   $('#deleteRecord').addEventListener('click',deleteEditingRecord);
-  $('#recordSpecies').addEventListener('change',()=>refreshRecordFormOptions());
-  $('#recordStatus').addEventListener('change',()=>refreshRecordFormEligibility());
+  const refreshRecordMovesPreservingValues=()=>{const moves=recordFormMoveValues();refreshRecordFormEligibility();refreshRecordFormOptions(moves);};
+  $('#recordSpecies').addEventListener('change',refreshRecordMovesPreservingValues);
+  $('#recordStatus').addEventListener('change',refreshRecordMovesPreservingValues);
+  $('#recordApex').addEventListener('change',refreshRecordMovesPreservingValues);
   for(const id of ['recordAttack','recordDefense','recordStamina','recordLevel'])$('#'+id).addEventListener('input',event=>{event.target.nextElementSibling.value=event.target.value;});
   $('.compare-modes').addEventListener('click',event=>{const button=event.target.closest('[data-compare-mode]');if(!button)return;state.collection.compareView=button.dataset.compareMode;$$('[data-compare-mode]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;});renderComparison();});
   $('.compare-modes').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=$$('[data-compare-mode]'),current=Math.max(0,tabs.indexOf(document.activeElement));let next=event.key==='Home'?0:event.key==='End'?tabs.length-1:event.key==='ArrowRight'?(current+1)%tabs.length:(current-1+tabs.length)%tabs.length;event.preventDefault();tabs[next].focus();tabs[next].click();});
@@ -640,10 +644,28 @@ function openRecordEditor(id) {
   refreshRecordFormOptions(record.moves);const dialog=$('#recordDialog');if(!dialog.open)dialog.showModal();
 }
 
+function recordFormMoveValues() {
+  return{fast:$('#recordFastMove').value||null,charged:[$('#recordChargedMove1').value,$('#recordChargedMove2').value].filter(Boolean)};
+}
+
+function recordChargedMoveOptions(pokemon) {
+  const moves=new Map((pokemon?.moves.charged||[]).map(move=>[move.id,{...move}])),status=$('#recordStatus').value,apex=$('#recordApex').checked,ids=[];
+  if(status==='shadow'){
+    ids.push(pokemon?.shadow?.shadowMove||'FRUSTRATION');
+    if(apex&&pokemon?.shadow?.apex?.shadowMove)ids.push(pokemon.shadow.apex.shadowMove);
+  }else if(status==='purified'){
+    ids.push(pokemon?.shadow?.purifiedMove||'RETURN');
+    if(pokemon?.shadow?.apex?.purifiedMove)ids.push(pokemon.shadow.apex.purifiedMove);
+  }
+  for(const id of new Set(ids.filter(Boolean))){const known=state.moveById.get(id)||moves.get(id)||{};moves.set(id,{...known,id,ko:scenarioMoveName(id),statusOnly:true});}
+  return[...moves.values()];
+}
+
 function refreshRecordFormOptions(savedMoves=null) {
   const record=state.collection.editing,pokemon=state.byKey.get($('#recordSpecies').value),moves=savedMoves||record?.moves||{fast:null,charged:[]};
-  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,`${move.ko}${move.elite?' · ELITE':''}`,move.id===current)).join('');};
-  fill('#recordFastMove',pokemon?.moves.fast||[],moves.fast,'모름');fill('#recordChargedMove1',pokemon?.moves.charged||[],moves.charged[0]||null,'모름');fill('#recordChargedMove2',pokemon?.moves.charged||[],moves.charged[1]||null,'없음·모름');refreshRecordFormEligibility();
+  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,`${move.ko||moveName(move.id,move)}${move.elite?' · ELITE':''}${move.statusOnly?' · 상태 전용':''}`,move.id===current)).join('');};
+  const chargedMoves=recordChargedMoveOptions(pokemon);
+  fill('#recordFastMove',pokemon?.moves.fast||[],moves.fast,'모름');fill('#recordChargedMove1',chargedMoves,moves.charged[0]||null,'모름');fill('#recordChargedMove2',chargedMoves,moves.charged[1]||null,'없음·모름');refreshRecordFormEligibility();
 }
 
 function refreshRecordFormEligibility() {
@@ -684,7 +706,7 @@ function loadRecordIntoDetail(id) {
 }
 
 function backupMetadata() {
-  return{appVersion:'1.4.0',dataSnapshots:{pokemonUpdated:state.dataDate,pvpGeneratedAt:state.pvp.generatedAt||state.pvp.updated||''}};
+  return{appVersion:APP_VERSION,dataSnapshots:{pokemonUpdated:state.dataDate,pvpGeneratedAt:state.pvp.generatedAt||state.pvp.updated||''}};
 }
 
 function downloadText(text,filename,type) {
@@ -702,7 +724,7 @@ async function exportCollection(format) {
 async function exportCollectionRecovery() {
   if(!state.collection.repo||!state.collection.recovery.length)return;
   try {
-    const date=new Date().toISOString().slice(0,10),text=await state.collection.repo.exportRecoveryJSON({appVersion:'1.4.0'});
+    const date=new Date().toISOString().slice(0,10),text=await state.collection.repo.exportRecoveryJSON({appVersion:APP_VERSION});
     downloadText(text,`go-valuedex-recovery-${date}.json`,'application/json;charset=utf-8');showToast(`복구가 필요한 원본 ${state.collection.recovery.length}건을 별도 JSON으로 내보냈습니다.`);
   } catch(error) {showToast(`복구 원본을 내보내지 못했습니다. ${error.message}`);}
 }
@@ -774,4 +796,4 @@ function renderComparison() {
   container.innerHTML=`<table class="compare-table"><thead><tr><th scope="col">항목</th>${columns.map(({record,pokemon})=>`<th scope="col"><img src="${esc(pokemon?.image||'')}" alt=""><strong>${esc(record.nickname||(pokemon?displayName(pokemon):record.speciesKey))}</strong><br><small>${esc(pokemon?padDex(pokemon.dex):record.speciesKey)}</small></th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-init();
+window.ValueDexAppReady=init();

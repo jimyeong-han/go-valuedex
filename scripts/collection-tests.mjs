@@ -204,6 +204,11 @@ test('round-trips every field through versioned JSON with Unicode and integrity'
   assert.equal(parsed.metadata.dataSnapshots.pokemonGeneratedAt, FIXED_TIME);
 });
 
+test('uses the current app version when export metadata is omitted', async () => {
+  const text = await Collection.serializeJSON([makeRecord()], {}, {now: LATER_TIME});
+  assert.equal(JSON.parse(text).appVersion, '1.5.0');
+});
+
 test('detects JSON mutation before importing records', async () => {
   const text = await Collection.serializeJSON([makeRecord({note: '원본'})], {}, {now: LATER_TIME});
   const envelope = JSON.parse(text);
