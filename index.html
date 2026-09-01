@@ -15,7 +15,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="#" aria-label="GO ValueDex 홈"><span class="brand-mark" aria-hidden="true"><i></i></span><span>GO <b>ValueDex</b></span></a>
-    <nav aria-label="주요 기능"><button class="nav-button boss-nav" id="openBossAnalysis" type="button" aria-label="레이드 보스 분석 열기">레이드 보스 분석</button><button class="nav-button collection-nav" id="openCollection" type="button" aria-label="내 포켓몬 보유함 열기">내 보유함 <span id="collectionCount" aria-label="저장한 포켓몬 0마리">0</span></button><button class="nav-button" id="openGuide" type="button" aria-label="판정 기준 열기">판정 기준</button><a class="nav-button" href="https://pokemongolive.com/" target="_blank" rel="noopener">공식 사이트 ↗</a></nav>
+    <nav aria-label="주요 기능"><button class="nav-button boss-nav" id="openBossAnalysis" type="button" aria-label="레이드·맥스 보스 분석 열기">레이드·맥스 분석</button><button class="nav-button collection-nav" id="openCollection" type="button" aria-label="내 포켓몬 보유함 열기">내 보유함 <span id="collectionCount" aria-label="저장한 포켓몬 0마리">0</span></button><button class="nav-button" id="openGuide" type="button" aria-label="판정 기준 열기">판정 기준</button><a class="nav-button" href="https://pokemongolive.com/" target="_blank" rel="noopener">공식 사이트 ↗</a></nav>
   </header>
 
   <main class="app-shell">
@@ -39,7 +39,7 @@
   </main>
 
   <footer>
-    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.6" target="_blank" rel="noopener">v1.6</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
+    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.7" target="_blank" rel="noopener">v1.7</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
     <p>데이터: <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">Pokémon GO API</a> · <a href="https://pvpoke.com/" target="_blank" rel="noopener">PvPoke</a> · <a href="https://github.com/PokeMiners/game_masters" target="_blank" rel="noopener">PokeMiners</a> · <a href="https://www.serebii.net/pokemongo/maxbattles.shtml" target="_blank" rel="noopener">Serebii</a> · <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a></p>
     <p>비공식 팬 도구이며 Pokémon, Pokémon GO 및 각 상표는 해당 권리자에게 있습니다. 결과는 일반적인 투자 판단 보조이며 특정 대면전의 breakpoint를 보장하지 않습니다.</p>
   </footer>
@@ -112,13 +112,13 @@
 
   <dialog id="bossDialog" class="boss-dialog" aria-labelledby="bossDialogTitle">
     <div class="boss-shell">
-      <header class="boss-head"><div><p class="kicker">RAID MATCHUP LAB</p><h2 id="bossDialogTitle">레이드 보스별 PvE 분석</h2><p>보스의 정확한 폼·기술·날씨를 골라 전체 도감 또는 내 보유함의 공격수를 비교합니다.</p></div><button class="dialog-close" type="button" data-close-dialog="bossDialog" aria-label="보스 분석 닫기">×</button></header>
-      <p class="boss-notice"><strong>예상값입니다.</strong> 보스 HP·CPM은 공식 미공개 커뮤니티 검증 프리셋이며 직접 수정할 수 있습니다. 이벤트별 서버 설정, 지연, 회피, 재입장, 우정·파티 파워와 보스 AI에 따라 실제 결과가 달라집니다.</p>
+      <header class="boss-head"><div><p class="kicker">RAID &amp; MAX MATCHUP LAB</p><h2 id="bossDialogTitle">레이드·맥스 보스별 PvE 분석</h2><p>보스의 정확한 폼·기술·날씨를 골라 전체 도감 또는 내 보유함의 공격수를 비교합니다.</p></div><button class="dialog-close" type="button" data-close-dialog="bossDialog" aria-label="보스 분석 닫기">×</button></header>
+      <p class="boss-notice"><strong>예상값입니다.</strong> 일반 레이드의 보스 HP·CPM은 공식 미공개 커뮤니티 검증 프리셋입니다. 다이맥스는 5성 레이드 값을 수정 가능한 출발점으로만 사용합니다. 이벤트별 서버 설정, 지연, 회피, 재입장, 우정·파티 파워와 보스 AI에 따라 실제 결과가 달라집니다.</p>
       <div class="boss-layout">
-        <section class="boss-controls" aria-label="레이드 분석 조건">
+        <section class="boss-controls" aria-label="레이드·맥스 분석 조건">
           <div class="boss-field boss-wide"><label for="bossSearch">보스 검색</label><input id="bossSearch" type="search" placeholder="한글·영문명, 도감 번호, 폼" autocomplete="off"></div>
           <div class="boss-field boss-wide"><label for="bossSpecies">보스와 폼</label><select id="bossSpecies" size="5" aria-describedby="bossSpeciesHelp"><option>도감 데이터를 불러오는 중…</option></select><small id="bossSpeciesHelp">폼에 따라 타입과 종족값이 달라집니다.</small></div>
-          <div class="boss-field"><label for="bossTier">난이도 프리셋</label><select id="bossTier"><option value="tier1">1성</option><option value="tier3">3성</option><option value="tier5" selected>5성</option><option value="mega">메가</option><option value="megaLegendary">메가 전설·원시</option><option value="custom">직접 설정</option></select></div>
+          <div class="boss-field"><label for="bossTier">난이도 프리셋</label><select id="bossTier" aria-describedby="bossDynamaxNotice"><option value="tier1">1성</option><option value="tier3">3성</option><option value="tier5" selected>5성</option><option value="mega">메가</option><option value="megaLegendary">메가 전설·원시</option><option value="dynamax">다이맥스 (일반 기술 근사)</option><option value="custom">직접 설정</option></select></div>
           <div class="boss-field"><label for="bossWeather">날씨</label><select id="bossWeather"><option value="none">날씨 부스트 없음</option><option value="clear">맑음</option><option value="rain">비</option><option value="partlyCloudy">약간 구름</option><option value="cloudy">흐림</option><option value="windy">강풍</option><option value="snow">눈</option><option value="fog">안개</option></select></div>
           <div class="boss-field"><label for="bossFastMove">보스 노말 기술</label><select id="bossFastMove"><option value="">모름·TDO 미산출</option></select></div>
           <div class="boss-field"><label for="bossChargedMove">보스 차지 기술</label><select id="bossChargedMove"><option value="">모름·TDO 미산출</option></select></div>
@@ -127,6 +127,7 @@
             <label><span>제한 시간(초)</span><input id="bossTimer" type="number" min="30" max="1800" step="1" value="300"></label>
             <label><span>보스 CPM</span><input id="bossCpm" type="number" min="0.1" max="2" step="0.0001" value="0.79"></label>
           </div>
+          <p id="bossDynamaxNotice" class="boss-max-notice boss-wide" role="status" aria-live="polite" hidden><strong>다이맥스 근사 모드</strong> 전체 도감에서는 Max 지원 종을 가정하고, 내 보유함에서는 실제 Max 자격을 저장한 개체만 3마리 추천 묶음에 포함합니다. 현재 계산은 일반 기술 구간만 비교하며 맥스미터, 3턴 맥스 기술, 맥스가드·맥스스피릿과 실제 보스별 배율은 반영하지 않습니다. HP·시간·CPM은 5성 레이드 초깃값이므로 실제 보스에 맞게 직접 보정하세요.</p>
           <fieldset class="boss-source boss-wide"><legend>공격수 후보</legend><label><input id="bossUseCollection" type="checkbox"> 내 보유함만 분석</label><label><input id="bossIncludeShadows" type="checkbox" checked> 그림자 포함</label><label><input id="bossIncludeMega" type="checkbox" checked> 메가진화 포함</label></fieldset>
           <div class="boss-field"><label for="bossAttackerLevel">도감 공격수 레벨 <output id="bossAttackerLevelOutput" for="bossAttackerLevel">40</output></label><input id="bossAttackerLevel" type="range" min="1" max="50" step="0.5" value="40"></div>
           <div class="boss-field"><label for="bossAttackerAttackIv">도감 공격 IV <output id="bossAttackerAttackIvOutput" for="bossAttackerAttackIv">15</output></label><input id="bossAttackerAttackIv" type="range" min="0" max="15" step="1" value="15"></div>
@@ -138,7 +139,7 @@
           <div id="bossResults" class="boss-results"></div>
         </section>
       </div>
-      <p class="boss-method">DPS는 에너지 상한 100과 남은 에너지 이월을 반영한 장기 평균 추정입니다. 타입 상성·자속·날씨·그림자·메가 폼을 반영하고, 보스 기술은 둘 다 골랐을 때 TDO에 반영합니다. 피격 에너지, 회피, 기절 후 재입장, 우정·파티 파워, 동료 구성과 네트워크 지연은 제외합니다. 원본에 PvE 차지 에너지가 없는 기술은 추정하지 않고 제외합니다. 근거: <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/2187-what-are-raid-battles/" target="_blank" rel="noopener">레이드 규칙</a> · <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/53-what-are-weather-boosts/" target="_blank" rel="noopener">날씨 부스트</a> · <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/3334-using-a-mega-evolved-pokemon/" target="_blank" rel="noopener">Mega 부스트</a> · <a href="https://github.com/PokeMiners/game_masters/blob/8e227be44f288d34463e23bf04e9b564d3c16f79/latest/latest.json" target="_blank" rel="noopener">공개 GAME_MASTER 스냅샷</a></p>
+      <p class="boss-method">DPS는 에너지 상한 100과 남은 에너지 이월을 반영한 장기 평균 추정입니다. 타입 상성·자속·날씨·그림자·메가 폼을 반영하고, 보스 기술은 둘 다 골랐을 때 TDO에 반영합니다. 추천 트리오는 이 순위를 3개씩 묶되 같은 원본 개체와 Mega 폼은 한 묶음에 중복하지 않고 Mega는 최대 1마리만 포함합니다. 완전한 파티 시뮬레이션은 아닙니다. 다이맥스 프리셋은 일반 기술 구간만 근사하고 맥스 기술·가드·스피릿은 제외합니다. 근거: <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/2187-what-are-raid-battles/" target="_blank" rel="noopener">레이드 규칙</a> · <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/4798-max-battles-and-catching-max-pokemon-1729887131/?hl=ko&p=web" target="_blank" rel="noopener">맥스배틀 규칙</a> · <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/53-what-are-weather-boosts/" target="_blank" rel="noopener">날씨 부스트</a> · <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/3334-using-a-mega-evolved-pokemon/" target="_blank" rel="noopener">Mega 부스트·활성 제한</a> · <a href="https://github.com/PokeMiners/game_masters/blob/8e227be44f288d34463e23bf04e9b564d3c16f79/latest/latest.json" target="_blank" rel="noopener">공개 GAME_MASTER 스냅샷</a></p>
     </div>
   </dialog>
 

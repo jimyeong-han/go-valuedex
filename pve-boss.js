@@ -137,6 +137,10 @@
     elite: {
       id: 'elite', label: '엘리트', stars: null, hp: 20000, timeLimitSeconds: 300, cpm: 0.79,
       estimate: true, estimateFields: ['hp', 'timeLimitSeconds', 'cpm']
+    },
+    dynamax: {
+      id: 'dynamax', label: '다이맥스 일반 기술 근사', stars: null, hp: 15000, timeLimitSeconds: 300, cpm: 0.79,
+      estimate: true, estimateFields: ['hp', 'timeLimitSeconds', 'cpm'], approximation: 'five-star-raid-cycle-default'
     }
   });
 
@@ -147,7 +151,8 @@
     mega: 'mega', '메가': 'mega',
     megalegendary: 'megaLegendary', 'mega-legendary': 'megaLegendary', '전설메가': 'megaLegendary',
     primal: 'primal', '원시': 'primal',
-    elite: 'elite', '엘리트': 'elite'
+    elite: 'elite', '엘리트': 'elite',
+    dynamax: 'dynamax', max: 'dynamax', '다이맥스': 'dynamax'
   });
 
   const ESTIMATE_ASSUMPTIONS = deepFreeze([
@@ -385,6 +390,7 @@
 
   function resolveMove(moveInput, pokemon, kind) {
     if (moveInput && typeof moveInput === 'object') return {...moveInput};
+    if (moveInput == null || String(moveInput).trim() === '') return null;
     const requested = String(moveInput || '').trim().toLowerCase();
     const moves = pokemon && pokemon.moves && Array.isArray(pokemon.moves[kind])
       ? pokemon.moves[kind]
@@ -552,7 +558,7 @@
     const pokemon = options.pokemon || (options.attacker && options.attacker.pokemon) || options.attacker;
     const attackerOptions = options.attacker && options.attacker.pokemon ? options.attacker : options;
     const boss = options.boss && options.boss.pokemon ? options.boss.pokemon : options.boss;
-    const bossOptions = options.boss && options.boss.pokemon ? options.boss : options;
+    const bossOptions = options.boss && options.boss.pokemon ? options.boss : {};
     const tier = getBossTierPreset(
       options.tier ?? bossOptions.tier ?? 'five',
       options.tierOverrides || bossOptions.tierOverrides
@@ -686,7 +692,7 @@
     const pokemon = options.pokemon || (options.attacker && options.attacker.pokemon) || options.attacker;
     const attackerOptions = options.attacker && options.attacker.pokemon ? options.attacker : options;
     const boss = options.boss && options.boss.pokemon ? options.boss.pokemon : options.boss;
-    const bossOptions = options.boss && options.boss.pokemon ? options.boss : options;
+    const bossOptions = options.boss && options.boss.pokemon ? options.boss : {};
     const tier = getBossTierPreset(
       options.tier ?? bossOptions.tier ?? 'five',
       options.tierOverrides || bossOptions.tierOverrides

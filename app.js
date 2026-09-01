@@ -1,7 +1,7 @@
 const Mechanics = window.ValueDexMechanics;
 if(!Mechanics)throw new Error('개체값 계산 모듈을 불러오지 못했습니다.');
 const Collection = window.ValueDexCollection;
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 
 const TYPE_ORDER = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'];
 const TYPE_KO = {normal:'노말',fire:'불꽃',water:'물',electric:'전기',grass:'풀',ice:'얼음',fighting:'격투',poison:'독',ground:'땅',flying:'비행',psychic:'에스퍼',bug:'벌레',rock:'바위',ghost:'고스트',dragon:'드래곤',dark:'악',steel:'강철',fairy:'페어리'};
@@ -9,7 +9,7 @@ const LEAGUES = {great:{name:'슈퍼리그',cap:1500,key:'great'},ultra:{name:'�
 const FORM_LABEL_KO = {normal:'기본',alola:'알로라',galarian:'가라르',hisuian:'히스이',paldea:'팔데아',male:'수컷',female:'암컷',attack:'어택폼',defense:'디펜스폼',speed:'스피드폼',altered:'어나더폼',origin:'오리진폼',incarnate:'화신폼',therian:'영물폼',plant:'초목도롱',sandy:'모래땅도롱',trash:'슈레도롱',meteor:'유성폼',core:'코어폼',ice_rider:'백마 탄 모습'};
 const GENERATION_REGION_KO = Object.freeze({1:'관동',2:'성도',3:'호연',4:'신오',5:'하나',6:'칼로스',7:'알로라',8:'가라르',9:'팔데아'});
 
-const state = {pokemon:[],byKey:new Map(),byDex:new Map(),defaultByDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,maxEligible:false,maxKind:'none',condition:'normal',purifyTrainerLevel:25,apex:false,training:{capType:'none',silverStat:'attack',target:{attack:10,defense:10,stamina:10},goodBuddy:false,phase:'planned'},ivCache:new Map(),utilityCache:new Map(),dataDate:'',collection:{repo:null,records:[],recovery:[],query:'',status:'',tag:'',sort:'updated',favorite:false,limit:100,compareMode:false,selectedIds:new Set(),compareView:'great',editing:null,error:'',metricCache:new Map()}};
+const state = {pokemon:[],byKey:new Map(),byDex:new Map(),defaultByDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,currentMoves:{fast:null,charged:[]},maxEligible:false,maxKind:'none',condition:'normal',purifyTrainerLevel:25,apex:false,training:{capType:'none',silverStat:'attack',target:{attack:10,defense:10,stamina:10},goodBuddy:false,phase:'planned'},ivCache:new Map(),utilityCache:new Map(),dataDate:'',collection:{repo:null,records:[],recovery:[],query:'',status:'',tag:'',sort:'updated',favorite:false,limit:100,compareMode:false,selectedIds:new Set(),compareView:'great',editing:null,error:'',metricCache:new Map()}};
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
 const els = {search:$('#searchInput'),type:$('#typeFilter'),generation:$('#generationFilter'),feature:$('#featureFilter'),list:$('#pokemonList'),count:$('#resultCount'),loadMore:$('#loadMore'),detail:$('#detailPanel')};
@@ -121,7 +121,7 @@ function resolvePokemonKey(value) {
 }
 function navigateTo(value) { const key=resolvePokemonKey(value);if(!key)return;const current=new URLSearchParams(location.hash.slice(1)).get('pokemon');if(current===key)selectPokemon(key,false);else location.hash=`pokemon=${encodeURIComponent(key)}`; }
 function resetScenarioState() {
-  state.condition='normal';state.purifyTrainerLevel=25;state.apex=false;state.maxEligible=false;state.maxKind='none';
+  state.condition='normal';state.purifyTrainerLevel=25;state.apex=false;state.maxEligible=false;state.maxKind='none';state.currentMoves={fast:null,charged:[]};
   state.training={capType:'none',silverStat:'attack',target:{...state.ivs},goodBuddy:false,phase:'planned'};
 }
 function selectPokemon(value,updateHash=true) {
@@ -215,7 +215,8 @@ function renderDetail() {
         <div class="mode-tabs" role="tablist">${modeTab('great','슈퍼리그')}${modeTab('ultra','하이퍼리그')}${modeTab('master','마스터리그')}${modeTab('pve','레이드 PvE')}${modeTab('max','맥스배틀')}</div>
         <div class="iv-content"><div class="slider-panel">
           ${ivSlider('공격','attack')}${ivSlider('방어','defense')}${ivSlider('체력','stamina')}
-          <div class="level-row"><p class="level-hint">현재 강화 레벨을 알면 진화 후 즉시 사용 가능 여부도 확인할 수 있어요.</p>${levelSlider()}</div>
+          <div class="level-row"><p class="level-hint">현재 강화 레벨을 알면 진화 후 즉시 사용 가능 여부도 확인할 수 있어요.</p>${levelSlider()}<output id="estimatedCp" class="estimated-cp" aria-live="polite" aria-atomic="true"><span>현재 예상 CP</span><strong>–</strong></output></div>
+          ${currentMoveFieldsHtml()}
           ${purificationOptionsHtml(p)}
           ${trainingPlannerHtml()}
           <div class="max-toggle" id="maxToggle"${isMaxCapable(p)?'':' hidden'}><label for="maxEligible"><input id="maxEligible" type="checkbox"><span><strong>이 개체는 맥스 포켓몬입니다</strong><span>같은 종이라도 맥스배틀/특별 리서치 출신 개체만 입장할 수 있어요.</span></span></label><select id="maxKindInput" aria-label="맥스 개체 종류"><option value="dynamax">다이맥스</option><option value="gigantamax">거다이맥스</option></select></div>
@@ -234,6 +235,9 @@ function ivSlider(label,key) {
   return `<div class="iv-slider iv-stat-slider"><label for="iv-${key}">${label}</label><div class="iv-range-wrap"><input id="iv-${key}" data-iv="${key}" type="range" min="0" max="15" step="1" value="${value}" aria-label="${label} 개체값 슬라이더"><span class="iv-range-ticks" aria-hidden="true"><span class="iv-range-tick" data-iv-tick="5"></span><span class="iv-range-tick" data-iv-tick="10"></span></span></div><input id="iv-number-${key}" class="iv-number-input" data-iv-number="${key}" type="number" min="0" max="15" step="1" inputmode="numeric" value="${value}" aria-label="${label} 개체값 직접 입력"></div>`;
 }
 function levelSlider() { return `<div class="iv-slider"><label for="levelInput">레벨</label><input id="levelInput" type="range" min="1" max="50" step="0.5" value="${state.level}" aria-label="현재 포켓몬 레벨"><output id="levelOutput">${state.level}</output></div>`; }
+function currentMoveFieldsHtml() {
+  return `<fieldset class="current-move-fields"><legend>저장할 현재 기술 <span>선택 사항</span></legend><div><label for="currentFastMove">노말 기술</label><select id="currentFastMove"><option value="">모름</option></select></div><div><label for="currentChargedMove1">차지 기술 1</label><select id="currentChargedMove1"><option value="">모름</option></select></div><div><label for="currentChargedMove2">차지 기술 2</label><select id="currentChargedMove2"><option value="">없음·모름</option></select></div><p id="currentMoveHelp">선택한 기술은 “현재 개체 저장”을 누를 때 함께 보관됩니다.</p></fieldset>`;
+}
 function statusSelectorHtml(pokemon) {
   const disabled=pokemon.shadowEligible?'':' disabled aria-disabled="true"';
   return `<div class="status-selector"><div class="status-tabs" role="radiogroup" aria-label="현재 개체 상태"><button type="button" class="status-tab active" data-condition="normal" aria-pressed="true">일반</button><button type="button" class="status-tab shadow" data-condition="shadow" aria-pressed="false"${disabled}>그림자</button><button type="button" class="status-tab purified" data-condition="purified" aria-pressed="false"${disabled}>정화됨</button></div><p id="statusHint" class="status-hint"></p></div>`;
@@ -259,10 +263,11 @@ function bindIvEvents() {
     input.addEventListener('blur',commit);
   });
   $('#levelInput').addEventListener('input',event=>{state.level=Number(event.target.value);$('#levelOutput').value=event.target.value;updateIvResults();});
+  for(const id of ['currentFastMove','currentChargedMove1','currentChargedMove2'])$('#'+id)?.addEventListener('change',syncCurrentMovesFromForm);
   $('#maxEligible').addEventListener('change',event=>{state.maxEligible=event.target.checked;if(!state.maxEligible)state.maxKind='none';else if(!recordMaxKindSupported(state.maxKind,state.selected))state.maxKind=state.selected.dynamax?'dynamax':'gigantamax';updateIvResults();});
   $('#maxKindInput').addEventListener('change',event=>{state.maxKind=event.target.value;state.maxEligible=true;updateIvResults();});
   $('#purifyTrainerLevel').addEventListener('input',event=>{state.purifyTrainerLevel=Math.max(1,Math.min(25,Math.round(Number(event.target.value)||25)));updateIvResults();});
-  $('#apexShadow')?.addEventListener('change',event=>{state.apex=event.target.checked;updateIvResults();});
+  $('#apexShadow')?.addEventListener('change',event=>{state.apex=event.target.checked;clearIncompatibleCurrentStatusMoves();updateIvResults();});
   $('#trainingCap').addEventListener('change',event=>{state.training.capType=event.target.value;if(state.training.capType==='none')state.training.target={...state.ivs};syncTrainingTargets();updateIvResults();});
   $('#trainingBuddy').addEventListener('change',event=>{state.training.goodBuddy=event.target.checked;updateIvResults();});
   $$('[data-training-iv]',els.detail).forEach(input=>input.addEventListener('input',()=>{const key=input.dataset.trainingIv;state.training.target[key]=Math.max(state.ivs[key],Number(input.value));$(`#training-out-${key}`).value=state.training.target[key];updateIvResults();}));
@@ -277,7 +282,7 @@ function handleDetailClick(event) {
   if(event.target.closest('#quickSave')){quickSaveCurrent();return;}
   const select=event.target.closest('[data-select-key]'); if(select){navigateTo(select.dataset.selectKey);return;}
   if(event.target.closest('[data-mobile-back]')){history.replaceState(null,'',`${location.pathname}${location.search}`);document.body.classList.remove('show-detail');return;}
-  const condition=event.target.closest('[data-condition]');if(condition&&!condition.disabled){state.condition=condition.dataset.condition;state.apex=false;if(state.condition==='shadow'){state.maxEligible=false;state.maxKind='none';state.training.capType='none';state.training.target={...state.ivs};}updateIvResults();return;}
+  const condition=event.target.closest('[data-condition]');if(condition&&!condition.disabled){state.condition=condition.dataset.condition;state.apex=false;if(state.condition==='shadow'){state.maxEligible=false;state.maxKind='none';state.training.capType='none';state.training.target={...state.ivs};}clearIncompatibleCurrentStatusMoves();updateIvResults();return;}
   const phase=event.target.closest('[data-training-phase]');if(phase){state.training.phase=phase.dataset.trainingPhase;updateIvResults();return;}
   const silver=event.target.closest('[data-silver-stat]');if(silver){state.training.silverStat=silver.dataset.silverStat;syncTrainingTargets();updateIvResults();return;}
   const mode=event.target.closest('[data-mode]'); if(mode){state.mode=mode.dataset.mode;$$('[data-mode]',els.detail).forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});updateIvResults();}
@@ -377,10 +382,12 @@ function updateScenarioControls(pokemon) {
   const maxToggle=$('#maxToggle'),checkbox=$('#maxEligible'),kindSelect=$('#maxKindInput'),capable=isMaxCapable(pokemon);maxToggle.hidden=!capable;checkbox.disabled=shadow||!capable;checkbox.checked=!shadow&&state.maxEligible&&capable;maxToggle.classList.toggle('unavailable',shadow);
   kindSelect.querySelector('[value="dynamax"]').disabled=!pokemon.dynamax;kindSelect.querySelector('[value="gigantamax"]').disabled=!pokemon.gigantamax;
   kindSelect.value=state.maxKind==='none'?(pokemon.dynamax?'dynamax':'gigantamax'):state.maxKind;kindSelect.hidden=!checkbox.checked||(!(pokemon.dynamax&&pokemon.gigantamax)&&recordMaxKindSupported(state.maxKind,pokemon));kindSelect.disabled=shadow;
+  refreshCurrentMoveOptions();
 }
 function updateIvResults() {
   syncTrainingTargets();const p=state.selected,snapshot=effectiveStateSnapshot(),result=evaluate(p,state.mode,snapshot),app=Mechanics.appraisalFor(snapshot.ivs),retention=Mechanics.speciesStatRetention(p,snapshot.ivs);updateScenarioControls(p);
   $('#appraisalStars').textContent=app.stars; $('#appraisalPercent').textContent=`IV 완성도 ${app.total}/45 · ${app.percent.toFixed(1)}%`;$('#statRetention').textContent=`15/15/15 대비 능력치 곱 ${retention.percent.toFixed(2)}%`;
+  const estimatedCp=statsAt(p,snapshot.ivs,snapshot.level).cp;$('#estimatedCp').innerHTML=`<span>현재 예상 CP</span><strong>CP ${estimatedCp.toLocaleString()}</strong>`;
   $('#ivResult').innerHTML=`<div class="grade-row"><span class="grade ${gradeClass(result.grade)}">${result.grade}</span><div><h4>${esc(result.title)}</h4><p>${esc(result.subtitle)}</p></div></div><div class="result-metrics">${result.metrics.map(([label,value])=>`<div class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><p class="explanation">${esc(result.explanation)}</p><p class="caution">${esc(result.caution)}</p>`;
   renderScenarioCompare(p);
   const finals=[...new Map([p,...finalEvolutions(p)].map(item=>[item.speciesKey,item])).values()];
@@ -547,7 +554,8 @@ async function quickSaveCurrent() {
   button.disabled=true;
   try {
     const maxKind=state.maxEligible&&recordMaxKindSupported(state.maxKind,state.selected)?state.maxKind:'none';
-    const record=Collection.createRecordFromState(state.selected,{condition:state.condition,ivs:{...state.ivs},level:state.level,apex:state.apex,training:state.training},{maxKind,hyperTraining:currentHyperTrainingRecord()});
+    const chargedMoves=state.currentMoves.charged.filter((id,index,items)=>id&&items.indexOf(id)===index);
+    const record=Collection.createRecordFromState(state.selected,{condition:state.condition,ivs:{...state.ivs},level:state.level,apex:state.apex,training:state.training},{maxKind,hyperTraining:currentHyperTrainingRecord(),moves:{fast:state.currentMoves.fast,charged:chargedMoves}});
     const saved=await state.collection.repo.add(record);if(!await refreshAfterCommit('현재 개체 저장'))return;
     showToast(`${displayName(state.selected)} ${state.ivs.attack}/${state.ivs.defense}/${state.ivs.stamina}을(를) 보유함에 저장했습니다.`,[
       {label:'상세 입력',run:()=>openRecordEditor(saved.id)},
@@ -685,8 +693,8 @@ function recordFormMoveValues() {
   return{fast:$('#recordFastMove').value||null,charged:[$('#recordChargedMove1').value,$('#recordChargedMove2').value].filter(Boolean)};
 }
 
-function recordChargedMoveOptions(pokemon) {
-  const moves=new Map((pokemon?.moves.charged||[]).map(move=>[move.id,{...move}])),status=$('#recordStatus').value,apex=$('#recordApex').checked,ids=[];
+function availableChargedMoves(pokemon,status='normal',apex=false) {
+  const moves=new Map((pokemon?.moves.charged||[]).map(move=>[move.id,{...move}])),ids=[];
   if(status==='shadow'){
     ids.push(pokemon?.shadow?.shadowMove||'FRUSTRATION');
     if(apex&&pokemon?.shadow?.apex?.shadowMove)ids.push(pokemon.shadow.apex.shadowMove);
@@ -698,9 +706,50 @@ function recordChargedMoveOptions(pokemon) {
   return[...moves.values()];
 }
 
+function statusExclusiveMoveIds(pokemon) {
+  const shadow=pokemon?.shadow;
+  return new Set([
+    shadow?.shadowMove||(pokemon?.shadowEligible?'FRUSTRATION':null),
+    shadow?.purifiedMove||(pokemon?.shadowEligible?'RETURN':null),
+    shadow?.apex?.shadowMove,
+    shadow?.apex?.purifiedMove
+  ].filter(Boolean));
+}
+
+function clearIncompatibleCurrentStatusMoves() {
+  const pokemon=state.selected;if(!pokemon)return;
+  const allowed=new Set(availableChargedMoves(pokemon,state.condition,state.apex).map(move=>move.id)),exclusive=statusExclusiveMoveIds(pokemon);
+  state.currentMoves.charged=(state.currentMoves.charged||[]).map(id=>id&&exclusive.has(id)&&!allowed.has(id)?null:id);
+}
+
+function moveChoiceLabel(move) {
+  return `${move.ko||moveName(move.id,move)}${moveAccessInfo(move)?' · 특별 기술':''}${move.statusOnly?' · 상태 전용':''}`;
+}
+
+function syncCurrentMovesFromForm() {
+  const first=$('#currentChargedMove1')?.value||'',second=$('#currentChargedMove2')?.value||'';
+  if(second&&second===first)$('#currentChargedMove2').value='';
+  const charged=[first||null,second&&second!==first?second:null];
+  state.currentMoves={fast:$('#currentFastMove')?.value||null,charged};
+}
+
+function refreshCurrentMoveOptions() {
+  const pokemon=state.selected;if(!pokemon||!$('#currentFastMove'))return;
+  const current=state.currentMoves||{fast:null,charged:[]},chargedMoves=availableChargedMoves(pokemon,state.condition,state.apex);
+  const fill=(selector,items,value,emptyLabel)=>{const valid=items.some(move=>move.id===value),selected=value||null,legacy=selected&&!valid?optionHtml(selected,`${moveName(selected)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!selected)+legacy+items.map(move=>optionHtml(move.id,moveChoiceLabel(move),move.id===selected)).join('');return selected;};
+  const fast=fill('#currentFastMove',pokemon.moves.fast,current.fast,'모름'),charged1=fill('#currentChargedMove1',chargedMoves,current.charged[0]||null,'모름'),charged2=fill('#currentChargedMove2',chargedMoves,current.charged[1]||null,'없음·모름');
+  const distinctCharged2=charged2&&charged2!==charged1?charged2:null;
+  state.currentMoves={fast,charged:[charged1,distinctCharged2]};
+  if(charged2&&!distinctCharged2)$('#currentChargedMove2').value='';
+}
+
+function recordChargedMoveOptions(pokemon) {
+  return availableChargedMoves(pokemon,$('#recordStatus').value,$('#recordApex').checked);
+}
+
 function refreshRecordFormOptions(savedMoves=null) {
   const record=state.collection.editing,pokemon=state.byKey.get($('#recordSpecies').value),moves=savedMoves||record?.moves||{fast:null,charged:[]};
-  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,`${move.ko||moveName(move.id,move)}${moveAccessInfo(move)?` · 특별 기술 (${exclusiveMoveHelp(move)})`:''}${move.statusOnly?' · 상태 전용':''}`,move.id===current)).join('');};
+  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,moveChoiceLabel(move),move.id===current)).join('');};
   const chargedMoves=recordChargedMoveOptions(pokemon);
   fill('#recordFastMove',pokemon?.moves.fast||[],moves.fast,'모름');fill('#recordChargedMove1',chargedMoves,moves.charged[0]||null,'모름');fill('#recordChargedMove2',chargedMoves,moves.charged[1]||null,'없음·모름');refreshRecordFormEligibility();
 }
@@ -735,7 +784,7 @@ async function deleteEditingRecord() {
 function loadRecordIntoDetail(id) {
   const record=state.collection.records.find(item=>item.id===id),pokemon=record&&recordPokemon(record);if(!record||!pokemon){showToast('현재 도감에서 이 폼을 열 수 없습니다. 백업에는 계속 보존됩니다.');return;}
   const snapshot=Collection.recordToSnapshot(record,{training:'base'});state.ivs={...snapshot.ivs};state.level=snapshot.level;selectPokemon(record.speciesKey,false);
-  state.ivs={...snapshot.ivs};state.level=snapshot.level;state.condition=snapshot.status;state.maxEligible=record.max.kind!=='none';state.maxKind=record.max.kind;state.apex=record.apex;
+  state.ivs={...snapshot.ivs};state.level=snapshot.level;state.currentMoves={fast:record.moves.fast,charged:[...record.moves.charged]};state.condition=snapshot.status;state.maxEligible=record.max.kind!=='none';state.maxKind=record.max.kind;state.apex=record.apex;
   state.training=record.hyperTraining?{capType:record.hyperTraining.capType,silverStat:record.hyperTraining.silverStat||'attack',target:{...record.hyperTraining.targetIvs},goodBuddy:record.hyperTraining.goodBuddy,phase:record.hyperTraining.phase}:{capType:'none',silverStat:'attack',target:{...snapshot.ivs},goodBuddy:false,phase:'planned'};
   history.pushState(null,'',`#pokemon=${encodeURIComponent(record.speciesKey)}`);renderDetail();document.body.classList.add('show-detail');
   for(const dialog of [$('#recordDialog'),$('#compareDialog'),$('#collectionDialog')])if(dialog.open)dialog.close();

@@ -108,6 +108,21 @@ test.describe('GitHub Pages shell and baseline Pokédex regressions', () => {
     await expect(page.locator('#transformationGrid')).toContainText('거다이맥스');
   });
 
+  test('updates the current CP immediately from IV and level inputs', async ({ page }) => {
+    await openDex(page, '1:normal');
+
+    await expect(page.locator('#estimatedCp span')).toHaveText('현재 예상 CP');
+    await expect(page.locator('#estimatedCp strong')).toHaveText('CP 590');
+    await page.locator('#iv-number-attack').fill('15');
+    await expect(page.locator('#estimatedCp strong')).toHaveText('CP 613');
+
+    await page.locator('#iv-number-attack').fill('10');
+    await setRange(page, '#levelInput', 20.5);
+    await expect(page.locator('#levelOutput')).toHaveText('20.5');
+    await expect(page.locator('#estimatedCp strong')).toHaveText('CP 605');
+    expect(await page.evaluate(() => state.level)).toBe(20.5);
+  });
+
   test('segments every IV slider at 5 and 10 and keeps direct input synchronized', async ({ page }) => {
     await openDex(page);
 

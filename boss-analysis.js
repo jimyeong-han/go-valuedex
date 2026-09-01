@@ -2,7 +2,7 @@
   'use strict';
 
   const BossEngine = window.ValueDexPveBoss || window.PveBoss;
-  const TIER_MAP = Object.freeze({tier1:'one',tier3:'three',tier5:'five',mega:'mega',megaLegendary:'megaLegendary',custom:'five'});
+  const TIER_MAP = Object.freeze({tier1:'one',tier3:'three',tier5:'five',mega:'mega',megaLegendary:'megaLegendary',dynamax:'dynamax',custom:'five'});
   const WEATHER_LABELS = Object.freeze({none:'부스트 없음',clear:'맑음',rain:'비',partlyCloudy:'약간 구름',cloudy:'흐림',windy:'강풍',snow:'눈',fog:'안개'});
   const EXCLUDED_ATTACKERS = new Set(['890:eternamax']);
   const STATUS_CHARGED_MOVES = Object.freeze({
@@ -13,7 +13,8 @@
     SACRED_FIRE_PLUS:Object.freeze({id:'SACRED_FIRE_PLUS',ko:'성스러운불꽃+',en:'Sacred Fire+',type:'fire',typeKo:'불꽃',power:135,energy:-100,duration:2500,elite:false,status:'shadow',dex:250,apex:true}),
     SACRED_FIRE_PLUS_PLUS:Object.freeze({id:'SACRED_FIRE_PLUS_PLUS',ko:'성스러운불꽃++',en:'Sacred Fire++',type:'fire',typeKo:'불꽃',power:155,energy:-100,duration:2500,elite:false,status:'purified',dex:250})
   });
-  const RESULT_LIMIT = 20;
+  const TRIO_SIZE = 3;
+  const RESULT_LIMIT = 18;
   let ready = false;
   let settingPreset = false;
   let tierManuallySelected = false;
@@ -42,6 +43,11 @@
   const pokemonName = pokemon => typeof displayName === 'function' ? displayName(pokemon) : pokemon?.name || pokemon?.speciesKey || '알 수 없음';
   const moveLabel = move => move?.ko || move?.en || move?.id || '알 수 없음';
   const typeLabel = type => TYPE_KO?.[type] || type;
+  const maxCapable = pokemon => typeof isMaxCapable === 'function' ? isMaxCapable(pokemon) : Boolean(pokemon?.maxCapable ?? (pokemon?.dynamax || pokemon?.gigantamax));
+
+  function isDynamaxPreset() {
+    return byId('bossTier')?.value === 'dynamax';
+  }
 
   function moveAccessInfo(move) {
     if(move?.access)return move.access;
@@ -134,6 +140,16 @@
     byId('bossTimer').value=preset.timeLimitSeconds;
     byId('bossCpm').value=preset.cpm;
     settingPreset=false;
+    updateBattleModeControls();
+  }
+
+  function updateBattleModeControls() {
+    const maxBattle=isDynamaxPreset(),notice=byId('bossDynamaxNotice');
+    if(notice)notice.hidden=!maxBattle;
+    for(const id of ['bossIncludeShadows','bossIncludeMega','bossAllyMegaBoost']){
+      const control=byId(id);if(control)control.disabled=maxBattle;
+    }
+    byId('bossDialog')?.classList.toggle('max-battle-mode',maxBattle);
   }
 
   function syntheticMega(base, mega) {
@@ -161,11 +177,11 @@
   }
 
   function catalogCandidates() {
-    const level=numeric(byId('bossAttackerLevel').value)||40,attackIv=Math.max(0,Math.min(15,Math.round(numeric(byId('bossAttackerAttackIv').value)))),includeShadows=byId('bossIncludeShadows').checked,includeMega=byId('bossIncludeMega').checked,candidates=[],megaSeen=new Set();
+    const maxBattle=isDynamaxPreset(),level=numeric(byId('bossAttackerLevel').value)||40,attackIv=Math.max(0,Math.min(15,Math.round(numeric(byId('bossAttackerAttackIv').value)))),includeShadows=!maxBattle&&byId('bossIncludeShadows').checked,includeMega=!maxBattle&&byId('bossIncludeMega').checked,candidates=[],megaSeen=new Set();
     for(const pokemon of state.pokemon){
-      if(EXCLUDED_ATTACKERS.has(pokemon.speciesKey)||!validFastMoves(pokemon).length||!validChargedMoves(pokemon).length)continue;
+      if(EXCLUDED_ATTACKERS.has(pokemon.speciesKey)||maxBattle&&!maxCapable(pokemon)||!validFastMoves(pokemon).length||!validChargedMoves(pokemon).length)continue;
       const common={base:pokemon,ivs:{attack:attackIv,defense:15,stamina:15},level,owned:false,fastMoves:validFastMoves(pokemon),chargedMoves:validChargedMoves(pokemon),moveAssumption:'가능한 기술 중 최적 조합 가정'};
-      candidates.push({...common,key:pokemon.speciesKey,pokemon,status:'normal',name:pokemonName(pokemon),image:pokemon.image||'',kindLabel:`도감 Lv.${level} · ${attackIv}/15/15`});
+      candidates.push({...common,key:pokemon.speciesKey,pokemon,status:'normal',name:pokemonName(pokemon),image:pokemon.image||'',kindLabel:maxBattle?`맥스 지원 종 가정 · 도감 Lv.${level} · ${attackIv}/15/15`:`도감 Lv.${level} · ${attackIv}/15/15`,isMax:maxBattle});
       if(includeShadows&&pokemon.shadowEligible)candidates.push({...common,key:`${pokemon.speciesKey}|shadow`,pokemon,status:'shadow',name:`그림자 ${pokemonName(pokemon)}`,image:pokemon.image||'',kindLabel:`그림자 · 도감 Lv.${level} · ${attackIv}/15/15`});
       if(includeMega)for(const mega of pokemon.mega||[]){
         if(megaSeen.has(mega.id))continue;megaSeen.add(mega.id);
@@ -192,18 +208,18 @@
   }
 
   function collectionCandidates() {
-    const includeShadows=byId('bossIncludeShadows').checked,includeMega=byId('bossIncludeMega').checked,candidates=[];
+    const maxBattle=isDynamaxPreset(),includeShadows=!maxBattle&&byId('bossIncludeShadows').checked,includeMega=!maxBattle&&byId('bossIncludeMega').checked,candidates=[];
     let unsupportedMoveRecords=0;
     for(const record of state.collection.records||[]){
       const pokemon=typeof recordPokemon==='function'?recordPokemon(record):state.byKey.get(record.speciesKey);
-      if(!pokemon||EXCLUDED_ATTACKERS.has(pokemon.speciesKey)||record.status==='shadow'&&!includeShadows)continue;
+      if(!pokemon||EXCLUDED_ATTACKERS.has(pokemon.speciesKey)||maxBattle&&(record.status==='shadow'||!(typeof recordMaxSupported==='function'?recordMaxSupported(record,pokemon):record.max?.kind!=='none'))||record.status==='shadow'&&!includeShadows)continue;
       const snapshot=typeof effectiveSnapshot==='function'?effectiveSnapshot(record):{ivs:record.ivs,level:record.level,status:record.status};
       const choices=storedMoveChoices(record,pokemon);
       if(choices.unresolved){unsupportedMoveRecords+=1;continue;}
       if(!choices.fastMoves.length||!choices.chargedMoves.length)continue;
       const shownName=record.nickname||pokemonName(pokemon),training=record.hyperTraining?.phase==='completed'?' · 특훈 완료':'';
       const common={base:pokemon,ivs:snapshot.ivs,level:snapshot.level,owned:true,recordId:record.id,fastMoves:choices.fastMoves,chargedMoves:choices.chargedMoves,moveAssumption:choices.moveAssumption};
-      candidates.push({...common,key:`record:${record.id}`,pokemon,status:snapshot.status,name:shownName,image:pokemon.image||'',kindLabel:`${typeof statusLabel==='function'?statusLabel(snapshot.status):snapshot.status} · ${pokemonName(pokemon)} · Lv.${snapshot.level} · ${snapshot.ivs.attack}/${snapshot.ivs.defense}/${snapshot.ivs.stamina}${training}`});
+      candidates.push({...common,key:`record:${record.id}`,pokemon,status:snapshot.status,name:shownName,image:pokemon.image||'',kindLabel:maxBattle?`${typeof maxKindLabel==='function'?maxKindLabel(record.max.kind):record.max.kind} · ${pokemonName(pokemon)} · Lv.${snapshot.level} · ${snapshot.ivs.attack}/${snapshot.ivs.defense}/${snapshot.ivs.stamina}${training}`:`${typeof statusLabel==='function'?statusLabel(snapshot.status):snapshot.status} · ${pokemonName(pokemon)} · Lv.${snapshot.level} · ${snapshot.ivs.attack}/${snapshot.ivs.defense}/${snapshot.ivs.stamina}${training}`,isMax:maxBattle});
       if(includeMega&&snapshot.status!=='shadow')for(const mega of pokemon.mega||[]){
         const megaPokemon=syntheticMega(pokemon,mega);
         candidates.push({...common,key:`record:${record.id}|mega:${mega.id}`,pokemon:megaPokemon,status:'normal',name:record.nickname?`${record.nickname} · ${mega.name}`:mega.name,image:mega.image||pokemon.image||'',fastMoves:choices.fastMoves,chargedMoves:choices.chargedMoves,kindLabel:`보유 개체 메가진화 · Lv.${snapshot.level} · ${snapshot.ivs.attack}/${snapshot.ivs.defense}/${snapshot.ivs.stamina}${training}`,isMega:true});
@@ -213,9 +229,10 @@
   }
 
   function readConfig() {
-    const allyMegaType=byId('bossAllyMegaBoost').value,preset=BossEngine.getBossTierPreset(tierKey());
+    const maxBattle=isDynamaxPreset(),allyMegaType=maxBattle?'none':byId('bossAllyMegaBoost').value,preset=BossEngine.getBossTierPreset(tierKey());
     return {
       tier:tierKey(),
+      maxBattle,
       weather:byId('bossWeather').value,
       allyMegaBoost:allyMegaType==='none'?'none':{mode:'typed',boostedTypes:[allyMegaType]},
       partySize:1,
@@ -253,13 +270,41 @@
   }
 
   function renderSummary(boss, config, count) {
-    const weaknesses=weaknessData(boss),tierLabel=byId('bossTier').selectedOptions[0]?.textContent||config.tier,types=(boss.types||[]).map(type=>type.ko||typeLabel(type.id||type)).join(' · '),moveText=[byId('bossFastMove').selectedOptions[0]?.textContent,byId('bossChargedMove').selectedOptions[0]?.textContent].filter(Boolean).join(' / '),allyMegaType=byId('bossAllyMegaBoost').value,allyMegaText=allyMegaType==='none'?'없음':`${typeLabel(allyMegaType)} 타입 · 일치 ×1.3 / 그 외 ×1.1`;
-    byId('bossSummary').innerHTML=`<strong>${safe(pokemonName(boss))} 공략 요약</strong><span>${safe(types)} 타입 · ${safe(tierLabel)} · ${safe(WEATHER_LABELS[config.weather]||config.weather)} · 후보 ${count.toLocaleString()}개</span><div class="boss-summary-grid"><div><span>보스 HP</span><strong>${config.tierOverrides.hp.toLocaleString()} HP</strong></div><div><span>제한 시간</span><strong>${config.tierOverrides.timeLimitSeconds}초</strong></div><div><span>CPM</span><strong>${config.tierOverrides.cpm}</strong></div><div><span>보스 기술</span><strong>${safe(moveText)}</strong></div><div><span>공격수 기준</span><strong>${byId('bossUseCollection').checked?'내 보유함':`전체 도감 ${byId('bossAttackerAttackIv').value}/15/15`}</strong></div><div><span>동료 Mega</span><strong>${safe(allyMegaText)}</strong></div></div><div class="boss-weaknesses">${weaknesses.length?weaknesses.map(item=>`<span class="boss-weakness ${item.multiplier>1.6?'double':''}" data-type="${safe(item.type)}">${safe(typeLabel(item.type))} ×${item.multiplier.toFixed(2).replace(/0$/,'')}</span>`).join(''):'<span class="boss-weakness">표시할 약점 없음</span>'}</div><p>에너지 상한 100과 이월을 반영한 장기 사이클 평균이며 피격 에너지는 제외합니다. 보스 기술은 둘 다 골라야 예상 TDO에 반영됩니다.</p>`;
+    const weaknesses=weaknessData(boss),tierLabel=byId('bossTier').selectedOptions[0]?.textContent||config.tier,types=(boss.types||[]).map(type=>type.ko||typeLabel(type.id||type)).join(' · '),moveText=[byId('bossFastMove').selectedOptions[0]?.textContent,byId('bossChargedMove').selectedOptions[0]?.textContent].filter(Boolean).join(' / '),allyMegaType=config.maxBattle?'none':byId('bossAllyMegaBoost').value,allyMegaText=config.maxBattle?'맥스배틀에서 제외':allyMegaType==='none'?'없음':`${typeLabel(allyMegaType)} 타입 · 일치 ×1.3 / 그 외 ×1.1`,attackerText=config.maxBattle?(byId('bossUseCollection').checked?'내 보유함 맥스 개체':`맥스 지원 종 가정 ${byId('bossAttackerAttackIv').value}/15/15`):(byId('bossUseCollection').checked?'내 보유함':`전체 도감 ${byId('bossAttackerAttackIv').value}/15/15`),modelText=config.maxBattle?'일반 기술 구간의 순위를 3마리씩 묶은 근사치입니다. 맥스 기술·가드·스피릿과 실제 보스 배율은 반영하지 않습니다.':'에너지 상한 100과 이월을 반영한 장기 사이클 평균이며 피격 에너지는 제외합니다. 보스 기술은 둘 다 골라야 예상 TDO에 반영됩니다.';
+    byId('bossSummary').innerHTML=`<strong>${safe(pokemonName(boss))} 공략 요약</strong><span>${safe(types)} 타입 · ${safe(tierLabel)} · ${safe(WEATHER_LABELS[config.weather]||config.weather)} · 후보 ${count.toLocaleString()}개</span><div class="boss-summary-grid"><div><span>보스 HP</span><strong>${config.tierOverrides.hp.toLocaleString()} HP</strong></div><div><span>제한 시간</span><strong>${config.tierOverrides.timeLimitSeconds}초</strong></div><div><span>CPM</span><strong>${config.tierOverrides.cpm}</strong></div><div><span>보스 기술</span><strong>${safe(moveText)}</strong></div><div><span>공격수 기준</span><strong>${safe(attackerText)}</strong></div><div><span>동료 Mega</span><strong>${safe(allyMegaText)}</strong></div></div><div class="boss-weaknesses">${weaknesses.length?weaknesses.map(item=>`<span class="boss-weakness ${item.multiplier>1.6?'double':''}" data-type="${safe(item.type)}">${safe(typeLabel(item.type))} ×${item.multiplier.toFixed(2).replace(/0$/,'')}</span>`).join(''):'<span class="boss-weakness">표시할 약점 없음</span>'}</div><p>${safe(modelText)}</p>`;
   }
 
-  function renderResultCard(best, index, boss) {
-    const {candidate,fastMove,chargedMove,result,breakpoint}=best,metrics=result.metrics,dps=metrics.dpsProxy,ttw=metrics.estimatedPartyTimeSeconds??numeric(byId('bossHp').value)/dps,required=metrics.estimatedRequiredPlayers??Math.ceil(ttw/numeric(byId('bossTimer').value)),effectiveness=resultEffectiveness(best,boss),tdo=metrics.tdoEstimate??metrics.tdoProxy,tdoLabel=metrics.tdoEstimate!=null?'예상 TDO':'TDO 지수',fastEffect=BossEngine.typeEffectiveness(fastMove.type,boss.types),chargedEffect=BossEngine.typeEffectiveness(chargedMove.type,boss.types),bossFastKnown=Boolean(byId('bossFastMove').value),bossChargedKnown=Boolean(byId('bossChargedMove').value),incomingLabel=bossFastKnown&&bossChargedKnown?'보스 기술 반영':bossFastKnown||bossChargedKnown?'보스 기술 일부만 지정 · 예상 TDO 미산출':'보스 기술 미지정 · 예상 TDO 미산출',breakpointText=breakpoint?.nextBreakpoint?`다음 노말 BP 공격 IV ${breakpoint.nextBreakpoint.attackIv} · ${breakpoint.nextBreakpoint.damage} 피해`:`노말 ${breakpoint?.currentDamage??result.outgoing.fast?.damage??'–'} 피해 · 이후 IV BP 없음`;
-    return `<article class="boss-result-card" data-attacker-key="${safe(candidate.key)}" data-dps="${dps.toFixed(6)}" data-ttw="${Number(ttw).toFixed(6)}" data-effectiveness="${Number(effectiveness.toFixed(6))}" data-required-players="${required}" data-breakpoint="${breakpoint?.nextBreakpoint?.attackIv??''}"><span class="boss-rank">#${index+1}</span><div class="boss-result-copy"><h3>${safe(candidate.name)}<span>${safe(candidate.kindLabel)}</span></h3><p class="boss-move-combo">${resultMoveHtml(fastMove)} + ${resultMoveHtml(chargedMove)} · ${safe(candidate.moveAssumption)}</p>${moveAccessNotice([fastMove,chargedMove])}<div class="boss-result-badges"><span class="${fastEffect>1.6?'super':''}">${safe(typeLabel(fastMove.type))} ×${fastEffect.toFixed(2).replace(/0$/,'')}</span><span class="${chargedEffect>1.6?'super':''}">${safe(typeLabel(chargedMove.type))} ×${chargedEffect.toFixed(2).replace(/0$/,'')}</span><span>${safe(breakpointText)}</span>${candidate.isMega?'<span>MEGA 폼</span>':''}${candidate.status==='shadow'?'<span>SHADOW ×1.2</span>':''}<span>${safe(incomingLabel)}</span></div></div><div class="boss-result-metrics"><div><span>DPS 사이클 추정</span><strong>${dps.toFixed(2)}</strong></div><div><span>${tdoLabel}</span><strong>${Number.isFinite(tdo)?Number(tdo).toFixed(1):'–'}</strong></div><div><span>예상 처치시간(이론)</span><strong>${formatSeconds(ttw)}</strong></div><div><span>최소 인원(이론)</span><strong>${required}명</strong></div></div></article>`;
+  function renderResultCard(best, index, boss, maxBattle=false) {
+    const {candidate,fastMove,chargedMove,result,breakpoint}=best,metrics=result.metrics,dps=metrics.dpsProxy,ttw=metrics.estimatedPartyTimeSeconds??numeric(byId('bossHp').value)/dps,required=metrics.estimatedRequiredPlayers??Math.ceil(ttw/numeric(byId('bossTimer').value)),effectiveness=resultEffectiveness(best,boss),tdo=metrics.tdoEstimate??metrics.tdoProxy,tdoLabel=metrics.tdoEstimate!=null?(maxBattle?'일반 구간 TDO 근사':'예상 TDO'):'TDO 지수',fastEffect=BossEngine.typeEffectiveness(fastMove.type,boss.types),chargedEffect=BossEngine.typeEffectiveness(chargedMove.type,boss.types),bossFastKnown=Boolean(byId('bossFastMove').value),bossChargedKnown=Boolean(byId('bossChargedMove').value),incomingLabel=bossFastKnown&&bossChargedKnown?(maxBattle?'일반 구간 보스 기술 근사':'보스 기술 반영'):bossFastKnown||bossChargedKnown?'보스 기술 일부만 지정 · 예상 TDO 미산출':'보스 기술 미지정 · 예상 TDO 미산출',breakpointText=breakpoint?.nextBreakpoint?`다음 노말 BP 공격 IV ${breakpoint.nextBreakpoint.attackIv} · ${breakpoint.nextBreakpoint.damage} 피해`:`노말 ${breakpoint?.currentDamage??result.outgoing.fast?.damage??'–'} 피해 · 이후 IV BP 없음`,dpsLabel=maxBattle?'일반 구간 DPS 근사':'DPS 사이클 추정',timeLabel=maxBattle?'일반 구간 시간 근사':'예상 처치시간(이론)',playersLabel=maxBattle?'레이드식 인원 근사':'최소 인원(이론)';
+    return `<article class="boss-result-card" data-attacker-key="${safe(candidate.key)}" data-source-key="${safe(candidateSourceKey(candidate))}" data-dps="${dps.toFixed(6)}" data-ttw="${Number(ttw).toFixed(6)}" data-effectiveness="${Number(effectiveness.toFixed(6))}" data-required-players="${required}" data-breakpoint="${breakpoint?.nextBreakpoint?.attackIv??''}"><span class="boss-rank">#${index+1}</span><div class="boss-result-copy"><h3>${safe(candidate.name)}<span>${safe(candidate.kindLabel)}</span></h3><p class="boss-move-combo">${resultMoveHtml(fastMove)} + ${resultMoveHtml(chargedMove)} · ${safe(candidate.moveAssumption)}</p>${moveAccessNotice([fastMove,chargedMove])}<div class="boss-result-badges"><span class="${fastEffect>1.6?'super':''}">${safe(typeLabel(fastMove.type))} ×${fastEffect.toFixed(2).replace(/0$/,'')}</span><span class="${chargedEffect>1.6?'super':''}">${safe(typeLabel(chargedMove.type))} ×${chargedEffect.toFixed(2).replace(/0$/,'')}</span><span>${safe(breakpointText)}</span>${candidate.isMega?'<span>MEGA 폼</span>':''}${candidate.isMax?'<span>MAX 후보</span>':''}${candidate.status==='shadow'?'<span>SHADOW ×1.2</span>':''}<span>${safe(incomingLabel)}</span></div></div><div class="boss-result-metrics"><div><span>${safe(dpsLabel)}</span><strong>${dps.toFixed(2)}</strong></div><div><span>${tdoLabel}</span><strong>${Number.isFinite(tdo)?Number(tdo).toFixed(1):'–'}</strong></div><div><span>${safe(timeLabel)}</span><strong>${formatSeconds(ttw)}</strong></div><div><span>${safe(playersLabel)}</span><strong>${required}명</strong></div></div></article>`;
+  }
+
+  function candidateSourceKey(candidate) {
+    return candidate?.recordId?`record:${candidate.recordId}`:candidate?.base?.speciesKey||candidate?.pokemon?.speciesKey||candidate?.key||'';
+  }
+
+  function canJoinTrio(trio, best) {
+    const candidate=best?.candidate;if(!candidate)return true;
+    if(candidate.isMega&&trio.some(item=>item.candidate?.isMega))return false;
+    const source=candidateSourceKey(candidate);
+    return !source||!trio.some(item=>candidateSourceKey(item.candidate)===source);
+  }
+
+  function resultTrios(results) {
+    const trios=[],maxTrios=Math.ceil(RESULT_LIMIT/TRIO_SIZE);
+    for(const best of results){
+      let trio=trios.find(items=>items.length<TRIO_SIZE&&canJoinTrio(items,best));
+      if(!trio&&trios.length<maxTrios){trio=[];trios.push(trio);}
+      if(!trio)continue;
+      trio.push(best);
+      if(trios.length===maxTrios&&trios.every(items=>items.length===TRIO_SIZE))break;
+    }
+    return trios;
+  }
+
+  function renderResultTrio(trio, trioIndex, boss, maxBattle=false) {
+    const names=trio.map(best=>best.candidate.name).join(' - '),ranks=trio.map(best=>`#${best.displayRank}`).join(' · '),megaCount=trio.filter(best=>best.candidate.isMega).length;
+    return `<details class="boss-trio" data-trio-index="${trioIndex+1}" data-trio-size="${trio.length}" data-mega-count="${megaCount}"><summary><span class="boss-trio-number">트리오 ${trioIndex+1}</span><strong class="boss-trio-names">${safe(names)}</strong><span class="boss-trio-hint">${safe(ranks)} · 클릭해서 개별 정보 보기</span></summary><div class="boss-trio-units">${trio.map(best=>renderResultCard(best,best.displayRank-1,boss,maxBattle)).join('')}</div></details>`;
   }
 
   async function runAnalysis() {
@@ -269,6 +314,7 @@
     const finish=()=>{if(runId===analysisRunId){button.disabled=false;container.setAttribute('aria-busy','false');}};
     if(!BossEngine){summary.innerHTML='<div class="boss-error">보스 계산 모듈을 불러오지 못했습니다. 페이지를 새로고침해 주세요.</div>';output.innerHTML='';finish();return;}
     if(!boss){summary.innerHTML='<div class="boss-error">분석할 보스와 폼을 선택해 주세요.</div>';output.innerHTML='<div class="boss-empty">보스 이름을 다시 검색하거나 분석할 폼을 선택해 주세요.</div>';finish();return;}
+    if(isDynamaxPreset()&&(boss.raidTransformation||!maxCapable(boss))){summary.innerHTML='<div class="boss-error">현재 도감에서 Max 지원이 확인된 일반 폼을 선택해 주세요.</div>';output.innerHTML='<div class="boss-empty">다이맥스·거다이맥스 지원 종만 이 근사 프리셋으로 분석할 수 있습니다.</div>';finish();return;}
     hasRun=true;
     button.disabled=true;container.setAttribute('aria-busy','true');output.innerHTML='<div class="boss-empty">공격수와 기술 조합을 계산하고 있습니다…</div>';
     await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
@@ -289,7 +335,8 @@
       const results=[];
       for(const candidate of candidates){const best=analyzeCandidate(candidate,boss,config);if(best)results.push(best);}
       results.sort((left,right)=>right.result.metrics.dpsProxy-left.result.metrics.dpsProxy||(right.result.metrics.tdoEstimate??right.result.metrics.tdoProxy??0)-(left.result.metrics.tdoEstimate??left.result.metrics.tdoProxy??0)||left.candidate.name.localeCompare(right.candidate.name,'ko'));
-      output.innerHTML=unsupportedNotice+(results.length?results.slice(0,RESULT_LIMIT).map((best,index)=>renderResultCard(best,index,boss)).join(''):'<div class="boss-empty">이 조건에서 계산 가능한 기술 조합이 없습니다.</div>');
+      const ranked=results.map((best,index)=>({...best,displayRank:index+1})),trios=resultTrios(ranked);
+      output.innerHTML=unsupportedNotice+(trios.length?trios.map((trio,index)=>renderResultTrio(trio,index,boss,config.maxBattle)).join(''):'<div class="boss-empty">이 조건에서 계산 가능한 기술 조합이 없습니다.</div>');
     } catch(error) {
       if(runId===analysisRunId){console.error(error);output.innerHTML=`<div class="boss-error">분석 중 오류가 발생했습니다. ${safe(error.message||error)}</div>`;}
     } finally {
@@ -325,8 +372,8 @@
     byId('openBossAnalysis')?.addEventListener('click',()=>{const dialog=byId('bossDialog');if(!dialog.open)dialog.showModal();waitForData();});
     byId('bossSearch')?.addEventListener('input',event=>populateBosses(event.target.value,byId('bossSpecies').value));
     byId('bossSpecies')?.addEventListener('change',updateBossMoves);
-    byId('bossTier')?.addEventListener('change',()=>{tierManuallySelected=true;setTierPreset();scheduleAnalysis();});
-    for(const id of ['bossHp','bossTimer','bossCpm'])byId(id)?.addEventListener('input',()=>{if(!settingPreset){tierManuallySelected=true;byId('bossTier').value='custom';}scheduleAnalysis();});
+    byId('bossTier')?.addEventListener('change',()=>{tierManuallySelected=true;setTierPreset();updateBattleModeControls();scheduleAnalysis();});
+    for(const id of ['bossHp','bossTimer','bossCpm'])byId(id)?.addEventListener('input',()=>{if(!settingPreset){tierManuallySelected=true;if(!isDynamaxPreset()){byId('bossTier').value='custom';updateBattleModeControls();}}scheduleAnalysis();});
     byId('bossAttackerLevel')?.addEventListener('input',event=>{byId('bossAttackerLevelOutput').value=event.target.value;scheduleAnalysis();});
     byId('bossAttackerAttackIv')?.addEventListener('input',event=>{byId('bossAttackerAttackIvOutput').value=event.target.value;scheduleAnalysis();});
     for(const id of ['bossWeather','bossFastMove','bossChargedMove','bossUseCollection','bossIncludeShadows','bossIncludeMega','bossAllyMegaBoost'])byId(id)?.addEventListener('change',scheduleAnalysis);
@@ -334,5 +381,5 @@
   }
 
   bind();
-  window.ValueDexBossAnalysis=Object.freeze({prepare,populateBosses,runAnalysis});
+  window.ValueDexBossAnalysis=Object.freeze({prepare,populateBosses,runAnalysis,resultTrios});
 })();

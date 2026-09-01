@@ -40,3 +40,14 @@
 .iv-number-input:focus-visible,.iv-range-wrap input[type=range]:focus-visible{outline:3px solid #1b7a5229;outline-offset:2px}
 
 @media(max-width:760px){.iv-stat-slider{grid-template-columns:48px minmax(0,1fr) 50px}.iv-slider .iv-number-input{height:44px}}
+
+/* Live CP and move-aware quick save. */
+.estimated-cp{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:46px;margin-top:10px;padding:10px 13px;border:1px solid #cfe2d5;border-radius:12px;background:linear-gradient(135deg,#e9f5ed,#f9fcf8);color:var(--ink)}
+.estimated-cp span{color:#53615a;font-size:10px;font-weight:800}.estimated-cp strong{color:var(--green);font-size:18px;letter-spacing:-.025em}
+.current-move-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:0;margin:16px 0 0;padding:12px;border:1px solid var(--line);border-radius:13px;background:#f8faf6}
+.current-move-fields legend{padding:0 5px;color:#52605a;font-size:10px;font-weight:800}.current-move-fields legend span{margin-left:4px;color:var(--muted);font-size:9px;font-weight:600}
+.current-move-fields>div{display:flex;min-width:0;flex-direction:column;gap:5px}.current-move-fields label{color:var(--muted);font-size:9px;font-weight:800}
+.current-move-fields select{width:100%;min-width:0;height:38px;padding:0 28px 0 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-size:10px;outline:0}
+.current-move-fields select:focus{border-color:#77a990;box-shadow:0 0 0 3px #1b7a5214}.current-move-fields p{grid-column:1/-1;margin:1px 0 0;color:var(--muted);font-size:9px;line-height:1.5}
+
+@media(max-width:760px){.current-move-fields{grid-template-columns:1fr}.current-move-fields select{min-height:44px}.estimated-cp{min-height:48px}}

@@ -101,7 +101,63 @@ test('quick saves once into IndexedDB and survives reload', async ({ page }) => 
   expect(await readIndexedDb(page)).toEqual(beforeReload);
 });
 
-test('explains a non-TM move route in the specimen move selector', async ({ page }) => {
+test('quick save stores the selected fast and charged moves', async ({ page }) => {
+  desktopOnly(page);
+  await openCollectionApp(page, '6:normal');
+
+  await page.locator('#currentChargedMove2').selectOption('BLAST_BURN');
+  await page.locator('#iv-number-attack').fill('11');
+  await expect(page.locator('#currentChargedMove1')).toHaveValue('');
+  await expect(page.locator('#currentChargedMove2')).toHaveValue('BLAST_BURN');
+  await page.locator('#currentChargedMove2').selectOption('');
+  await page.locator('#currentFastMove').selectOption('FIRE_SPIN');
+  await page.locator('#currentChargedMove1').selectOption('BLAST_BURN');
+  await page.locator('#currentChargedMove2').selectOption('DRAGON_CLAW');
+  await expect(page.locator('#currentChargedMove1 option:checked')).toHaveText('블라스트번 · 특별 기술');
+  await page.locator('#quickSave').click();
+
+  await expect(page.locator('#collectionCount')).toHaveText('1');
+  let records = await readIndexedDb(page);
+  expect(records).toHaveLength(1);
+  expect(records[0].moves).toEqual({ fast: 'FIRE_SPIN', charged: ['BLAST_BURN', 'DRAGON_CLAW'] });
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(state.collection.repo) && state.collection.records.length === 1);
+  records = await readIndexedDb(page);
+  expect(records[0].moves).toEqual({ fast: 'FIRE_SPIN', charged: ['BLAST_BURN', 'DRAGON_CLAW'] });
+});
+
+test('quick save supports an APEX status-exclusive move', async ({ page }) => {
+  desktopOnly(page);
+  await openCollectionApp(page, '249:normal');
+
+  await page.locator('[data-condition="shadow"]').click();
+  await page.locator('#apexShadow').check();
+  await page.locator('#currentFastMove').selectOption('EXTRASENSORY');
+  await expect(page.locator('#currentChargedMove1 option[value="FRUSTRATION"]')).toHaveText('화풀이 · 상태 전용');
+  await expect(page.locator('#currentChargedMove1 option[value="AEROBLAST_PLUS"]')).toHaveText('에어로블라스트+ · 상태 전용');
+  await page.locator('#currentChargedMove1').selectOption('AEROBLAST_PLUS');
+
+  await page.locator('[data-condition="normal"]').click();
+  await expect(page.locator('#currentChargedMove1')).toHaveValue('');
+  await expect(page.locator('#currentChargedMove1 option[value="AEROBLAST_PLUS"]')).toHaveCount(0);
+
+  await page.locator('[data-condition="shadow"]').click();
+  await page.locator('#apexShadow').check();
+  await page.locator('#currentChargedMove1').selectOption('AEROBLAST_PLUS');
+  await page.locator('#quickSave').click();
+
+  const records = await readIndexedDb(page);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    speciesKey: '249:normal',
+    status: 'shadow',
+    apex: true,
+    moves: { fast: 'EXTRASENSORY', charged: ['AEROBLAST_PLUS'] }
+  });
+});
+
+test('keeps the non-TM move label compact in the specimen editor', async ({ page }) => {
   desktopOnly(page);
   await openCollectionApp(page, '384:normal');
   await page.locator('#quickSave').click();
@@ -110,7 +166,8 @@ test('explains a non-TM move route in the specimen move selector', async ({ page
 
   const option = page.locator('#recordChargedMove1 option[value="DRAGON_ASCENT"]');
   await expect(option).toHaveCount(1);
-  await expect(option).toHaveText('화룡점정 · 특별 기술 (운석 사용 · 모든 기술머신으로 배울 수 없음)');
+  await expect(option).toHaveText('화룡점정 · 특별 기술');
+  await expect(option).not.toContainText('(');
 });
 
 test('edits all specimen metadata and filters the saved card', async ({ page }) => {
@@ -299,7 +356,7 @@ test('round-trips a JSON download and rejects an invalid JSON atomically', async
   await page.locator('#exportCollectionJson').click();
   const backup = await downloadBuffer(await downloadPromise);
   const envelope = JSON.parse(backup.toString('utf8'));
-  expect(envelope).toMatchObject({ format: 'go-valuedex-collection', formatVersion: 1, appVersion: '1.6.0', recordCount: 2 });
+  expect(envelope).toMatchObject({ format: 'go-valuedex-collection', formatVersion: 1, appVersion: '1.7.0', recordCount: 2 });
   expect(envelope.records.sort((left, right) => left.id.localeCompare(right.id))).toEqual(original);
 
   page.once('dialog', dialog => dialog.accept());
@@ -377,7 +434,8 @@ test('loads a saved card back into the Pokédex without losing the selected leag
     status: 'purified',
     ivs: { attack: 14, defense: 13, stamina: 15 },
     level: 32.5,
-    maxKind: 'gigantamax'
+    maxKind: 'gigantamax',
+    moves: { fast: 'LEGACY_FAST', charged: ['LEGACY_CHARGED'] }
   }]);
 
   await page.locator('#openCollection').click();
@@ -400,8 +458,16 @@ test('loads a saved card back into the Pokédex without losing the selected leag
   });
   await expect(page.locator('[data-condition="purified"]')).toHaveClass(/active/);
   await expect(page.locator('#maxEligible')).toBeChecked();
+  await expect(page.locator('#currentFastMove')).toHaveValue('LEGACY_FAST');
+  await expect(page.locator('#currentFastMove option:checked')).toHaveText('Legacy Fast · 이전 데이터');
+  await expect(page.locator('#currentChargedMove1')).toHaveValue('LEGACY_CHARGED');
+  await expect(page.locator('#currentChargedMove1 option:checked')).toHaveText('Legacy Charged · 이전 데이터');
   await expect(page.locator('[data-mode="ultra"]')).toHaveClass(/active/);
   await expect(page.locator('#ivResult h4')).toContainText('하이퍼리그');
+
+  await page.locator('#quickSave').click();
+  const copied = (await readIndexedDb(page)).find(record => record.nickname === '');
+  expect(copied.moves).toEqual({ fast: 'LEGACY_FAST', charged: ['LEGACY_CHARGED'] });
 });
 
 test('uses completed Hyper Training targets for evaluation while quick save preserves the base IV plan', async ({ page }) => {
@@ -617,7 +683,7 @@ test('keeps valid records usable and exports unreadable recovery originals', asy
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#exportCollectionRecovery').click();
   const recovery = JSON.parse((await downloadBuffer(await downloadPromise)).toString('utf8'));
-  expect(recovery).toMatchObject({format: 'go-valuedex-recovery', formatVersion: 1, appVersion: '1.6.0'});
+  expect(recovery).toMatchObject({format: 'go-valuedex-recovery', formatVersion: 1, appVersion: '1.7.0'});
   expect(recovery.entries).toHaveLength(1);
   expect(recovery.entries[0]).toMatchObject({
     id: 'future-row',

@@ -28,6 +28,9 @@ async function selectRayquaza(page) {
 
 async function runAnalysis(page) {
   await page.locator('#runBossAnalysis').click();
+  const firstTrio = page.locator('#bossResults .boss-trio').first();
+  await expect(firstTrio).toBeVisible();
+  if (await firstTrio.getAttribute('open') === null) await firstTrio.locator('summary').click();
   await expect(page.locator('#bossResults .boss-result-card').first()).toBeVisible();
   await expect(page.locator('.boss-output')).toHaveAttribute('aria-busy', 'false');
 }
@@ -37,6 +40,8 @@ async function resultMetric(page, attackerKey, attribute) {
     ? `.boss-result-card[data-attacker-key="${attackerKey}"]`
     : '.boss-result-card';
   const card = page.locator(`#bossResults ${selector}`).first();
+  const trio = card.locator('xpath=ancestor::details[contains(@class,"boss-trio")]');
+  if (await trio.count() && await trio.getAttribute('open') === null) await trio.locator('summary').click();
   await expect(card).toBeVisible();
   const value = Number(await card.getAttribute(attribute));
   expect(Number.isFinite(value), `${attribute} should be a finite number`).toBe(true);
@@ -56,7 +61,7 @@ async function seedOwnedAttacker(page, fixture) {
     }, {
       nickname: entry.nickname,
       moves: entry.moves,
-      maxKind: 'none',
+      maxKind: entry.maxKind || 'none',
       favorite: false,
       tags: ['레이드'],
       note: ''
@@ -83,6 +88,116 @@ test('labels generation filters with their regions and analyzes Rayquaza as an e
   await expect(page.locator('#bossSummary')).toContainText('얼음');
   expect(Number(await page.locator('#bossResults .boss-result-card').first().getAttribute('data-effectiveness')))
     .toBeCloseTo(2.56, 10);
+});
+
+test('groups ranked raid recommendations into collapsed three-Pokémon summaries', async ({ page }) => {
+  desktopOnly(page);
+  await openBossAnalysis(page);
+  await selectRayquaza(page);
+  await page.locator('#runBossAnalysis').click();
+
+  const firstTrio = page.locator('#bossResults .boss-trio').first();
+  await expect(firstTrio).toBeVisible();
+  await expect(firstTrio).not.toHaveAttribute('open', '');
+  await expect(firstTrio).toHaveAttribute('data-trio-size', '3');
+  const names = (await firstTrio.locator('.boss-trio-names').textContent()).split(' - ');
+  expect(names).toHaveLength(3);
+  await expect(firstTrio.locator('.boss-result-card').first()).toBeHidden();
+
+  await firstTrio.locator('summary').click();
+  await expect(firstTrio).toHaveAttribute('open', '');
+  await expect(firstTrio.locator('.boss-result-card')).toHaveCount(3);
+  await expect(firstTrio.locator('.boss-rank').nth(0)).toHaveText('#1');
+  const trioRanks = await firstTrio.locator('.boss-rank').allTextContents();
+  expect(trioRanks.map(value => Number(value.slice(1)))).toEqual([...trioRanks.map(value => Number(value.slice(1)))].sort((left, right) => left - right));
+  expect(Number(await firstTrio.getAttribute('data-mega-count'))).toBeLessThanOrEqual(1);
+  const sourceKeys = await firstTrio.locator('.boss-result-card').evaluateAll(cards => cards.map(card => card.dataset.sourceKey));
+  expect(new Set(sourceKeys).size).toBe(sourceKeys.length);
+  const trioConstraints = await page.locator('#bossResults .boss-trio').evaluateAll(trios => trios.map(trio => {
+    const sources = [...trio.querySelectorAll('.boss-result-card')].map(card => card.dataset.sourceKey);
+    return { megaCount: Number(trio.dataset.megaCount), sources };
+  }));
+  expect(trioConstraints.length).toBeLessThanOrEqual(6);
+  for (const constraint of trioConstraints) {
+    expect(constraint.megaCount).toBeLessThanOrEqual(1);
+    expect(new Set(constraint.sources).size).toBe(constraint.sources.length);
+  }
+  await expect(firstTrio.locator('.boss-result-card').first()).toBeVisible();
+});
+
+test('offers a disclosed Dynamax approximation and limits catalog candidates to Max-capable species', async ({ page }) => {
+  desktopOnly(page);
+  await openBossAnalysis(page);
+  await page.locator('#bossSearch').fill('리자몽');
+  await page.locator('#bossSpecies').selectOption('6:normal');
+  await page.locator('#bossTier').selectOption('dynamax');
+
+  await expect(page.locator('#bossDynamaxNotice')).toBeVisible();
+  await expect(page.locator('#bossIncludeShadows')).toBeDisabled();
+  await expect(page.locator('#bossIncludeMega')).toBeDisabled();
+  await expect(page.locator('#bossAllyMegaBoost')).toBeDisabled();
+  await expect(page.locator('#bossHp')).toHaveValue('15000');
+  await page.locator('#bossHp').fill('18000');
+  await expect(page.locator('#bossTier')).toHaveValue('dynamax');
+  await runAnalysis(page);
+
+  await expect(page.locator('#bossSummary')).toContainText('맥스 지원 종 가정');
+  await expect(page.locator('#bossSummary')).toContainText('맥스 기술·가드·스피릿');
+  await expect(page.locator('#bossResults .boss-result-card').first()).toContainText('MAX 후보');
+  await expect(page.locator('#bossResults .boss-result-card').first()).toContainText('일반 구간 DPS 근사');
+  await expect(page.locator('#bossResults .boss-result-card').first().locator('.boss-result-metrics')).toContainText('TDO 지수');
+  await expect(page.locator('#bossResults .boss-result-card').first().locator('.boss-result-metrics')).not.toContainText('예상 TDO');
+  const invalidKeys = await page.locator('#bossResults .boss-result-card').evaluateAll((cards) => cards.map(card => card.dataset.attackerKey).filter(key => !state.byKey.get(key)?.maxCapable));
+  expect(invalidKeys).toEqual([]);
+  await expect(page.locator('#bossResults')).not.toContainText('MEGA 폼');
+  await expect(page.locator('#bossResults')).not.toContainText('SHADOW ×1.2');
+
+  await page.locator('#bossFastMove').selectOption({ index: 1 });
+  await page.locator('#bossChargedMove').selectOption({ index: 1 });
+  await runAnalysis(page);
+  await expect(page.locator('#bossResults .boss-result-card').first().locator('.boss-result-metrics')).toContainText('일반 구간 TDO 근사');
+  await expect(page.locator('#bossResults .boss-result-card').first()).toContainText('일반 구간 보스 기술 근사');
+
+  await page.locator('#bossTier').selectOption('tier5');
+  await expect(page.locator('#bossDynamaxNotice')).toBeHidden();
+  await expect(page.locator('#bossIncludeShadows')).toBeEnabled();
+  await expect(page.locator('#bossIncludeMega')).toBeEnabled();
+  await expect(page.locator('#bossAllyMegaBoost')).toBeEnabled();
+});
+
+test('uses only saved Dynamax or Gigantamax specimens and keeps a partial trio', async ({ page }) => {
+  desktopOnly(page);
+  await openBossAnalysis(page);
+  const maxRecordId = await seedOwnedAttacker(page, {
+    speciesKey: '9:normal',
+    nickname: '보유 다이맥스 거북왕',
+    status: 'normal',
+    ivs: { attack: 15, defense: 15, stamina: 15 },
+    level: 40,
+    moves: { fast: 'WATER_GUN', charged: ['HYDRO_CANNON'] },
+    maxKind: 'dynamax'
+  });
+  await seedOwnedAttacker(page, {
+    speciesKey: '382:normal',
+    nickname: '일반 가이오가',
+    status: 'normal',
+    ivs: { attack: 15, defense: 15, stamina: 15 },
+    level: 40,
+    moves: { fast: 'WATERFALL', charged: ['SURF'] }
+  });
+
+  await page.locator('#bossSearch').fill('리자몽');
+  await page.locator('#bossSpecies').selectOption('6:normal');
+  await page.locator('#bossTier').selectOption('dynamax');
+  await page.locator('#bossUseCollection').check();
+  await runAnalysis(page);
+
+  await expect(page.locator('#bossResults .boss-result-card')).toHaveCount(1);
+  await expect(page.locator('#bossResults .boss-trio')).toHaveAttribute('data-trio-size', '1');
+  const owned = page.locator(`#bossResults .boss-result-card[data-attacker-key="record:${maxRecordId}"]`);
+  await expect(owned).toContainText('보유 다이맥스 거북왕');
+  await expect(owned).toContainText('다이맥스');
+  await expect(page.locator('#bossResults')).not.toContainText('일반 가이오가');
 });
 
 test('applies snowy weather to the same Rayquaza counter DPS', async ({ page }) => {
@@ -458,6 +573,11 @@ test('keeps the boss-analysis dialog touch-friendly without horizontal overflow'
   await page.locator('#bossSearch').fill('레쿠쟈');
   await page.locator('#bossSpecies').selectOption('384:normal');
   await runAnalysis(page);
+  const mobileSummaryLayout = await page.locator('#bossResults .boss-trio summary').first().evaluate(element => {
+    const marker = getComputedStyle(element, '::after');
+    return { column: marker.gridColumnStart, row: marker.gridRowStart };
+  });
+  expect(mobileSummaryLayout).toEqual({ column: '3', row: '1' });
   for (const selector of ['.boss-summary-grid span', '.boss-result-badges span', '.boss-result-metrics span']) {
     const fontSize = await page.locator(selector).first().evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
     expect(fontSize, `${selector} should remain readable`).toBeGreaterThanOrEqual(10);
@@ -471,7 +591,7 @@ test('keeps every primary nav action reachable at the 320px minimum width', asyn
   await page.setViewportSize({ width: 320, height: 700 });
   await openDex(page, '384:normal');
 
-  await expect(page.locator('#openBossAnalysis')).toHaveAccessibleName('레이드 보스 분석 열기');
+  await expect(page.locator('#openBossAnalysis')).toHaveAccessibleName('레이드·맥스 보스 분석 열기');
   await expect(page.locator('#openCollection')).toHaveAccessibleName('내 포켓몬 보유함 열기');
   await expect(page.locator('#openGuide')).toHaveAccessibleName('판정 기준 열기');
   const navLayout = await page.evaluate(() => {

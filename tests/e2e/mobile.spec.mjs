@@ -36,6 +36,11 @@ test('keeps segmented IV sliders and direct inputs readable at 390px', async ({ 
   await openDex(page);
 
   await expect(page.locator('.exclusive-move-note').first()).toContainText('일반 기술머신으로 배울 수 없음');
+  await expect(page.locator('#estimatedCp')).toBeVisible();
+  await expect(page.locator('.current-move-fields select')).toHaveCount(3);
+  for (const selector of ['#currentFastMove', '#currentChargedMove1', '#currentChargedMove2']) {
+    expect(await page.locator(selector).evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  }
 
   const controlMetrics = await page.locator('.iv-stat-slider').evaluateAll(rows => rows.map(row => {
     const range = row.querySelector('[data-iv]');
@@ -72,6 +77,7 @@ test('keeps segmented IV sliders and direct inputs readable at 390px', async ({ 
 
   await page.locator('#iv-number-attack').fill('15');
   await expect(page.locator('#iv-attack')).toHaveValue('15');
+  await expect(page.locator('#estimatedCp strong')).toHaveText('CP 1,608');
   expect(await page.evaluate(() => state.ivs.attack)).toBe(15);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

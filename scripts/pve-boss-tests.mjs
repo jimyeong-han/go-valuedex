@@ -189,6 +189,14 @@ test('boss tier aliases resolve to fresh estimate-marked values and accept overr
   assert.equal(custom.overridden, true);
   assert.equal(BOSS_TIER_PRESETS.mega.hp, 9000);
 
+  const dynamax = getBossTierPreset('다이맥스');
+  assert.equal(dynamax.id, 'dynamax');
+  assert.equal(dynamax.hp, 15000);
+  assert.equal(dynamax.timeLimitSeconds, 300);
+  assert.equal(dynamax.approximation, 'five-star-raid-cycle-default');
+  assert.equal(getBossTierPreset('max', {hp: 18000}).hp, 18000);
+  assert.equal(BOSS_TIER_PRESETS.dynamax.hp, 15000);
+
   const fallback = getBossTierPreset('not-a-tier');
   assert.equal(fallback.id, 'five');
   assert.ok(fallback.reasonCodes.includes('BOSS_TIER_INVALID'));
@@ -373,6 +381,24 @@ test('boss moves enable incoming-cycle survival and TDO estimates', () => {
   assert.ok(withMoves.metrics.survivalSeconds > 0);
   assert.ok(withMoves.metrics.tdoEstimate > 0);
   assert.equal(withMoves.metrics.tdoModel, 'incoming-cycle-estimate');
+});
+
+test('a raw boss never inherits attacker IVs or matching moves as boss inputs', () => {
+  const mirror = analyzeBossBattle({
+    pokemon: rayquaza,
+    ivs: {attack: 0, defense: 1, stamina: 2},
+    level: 40,
+    fastMove: 'DRAGON_TAIL',
+    chargedMove: 'OUTRAGE',
+    boss: rayquaza,
+    tier: 'five'
+  });
+
+  assert.equal(mirror.valid, true);
+  assert.deepEqual(mirror.boss.stats.ivs, {attack: 15, defense: 15, stamina: 15});
+  assert.equal(mirror.incoming, null);
+  assert.equal(mirror.metrics.tdoEstimate, null);
+  assert.equal(mirror.metrics.tdoModel, 'bulk-proxy');
 });
 
 test('attack-IV breakpoint search finds the discrete fast-move damage step', () => {

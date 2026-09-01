@@ -206,7 +206,7 @@ test('round-trips every field through versioned JSON with Unicode and integrity'
 
 test('uses the current app version when export metadata is omitted', async () => {
   const text = await Collection.serializeJSON([makeRecord()], {}, {now: LATER_TIME});
-  assert.equal(JSON.parse(text).appVersion, '1.6.0');
+  assert.equal(JSON.parse(text).appVersion, '1.7.0');
 });
 
 test('detects JSON mutation before importing records', async () => {
