@@ -1,14 +1,15 @@
 # GO ValueDex
 
-Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV 가치를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
+Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활용도를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
 
-현재 버전: **1.1** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.1) · [변경 기록](CHANGELOG.md)
+현재 버전: **1.2** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.2) · [변경 기록](CHANGELOG.md)
 
 ## 제공 기능
 
 - 1,188개 평가 폼의 한국어·영문명·도감 번호 검색과 타입/세대/메가/다이맥스 필터
 - 일반·지역·전투 폼을 독립적으로 선택하고 공유할 수 있는 폼별 URL
 - 공격·방어·체력 `0–15` 슬라이더 및 현재 강화 레벨 입력
+- PvP·중립 레이드 화력·Mega·Max 근거를 분리한 `핵심 실전용 / 조건부 실전용 / 수집·관상 중심` 분류
 - 슈퍼·하이퍼·마스터리그의 4,096개 IV 조합 전수 순위
 - PvP 개체 적합도와 해당 종의 메타 활용도를 분리한 설명
 - 레이드 PvE 공격 우선 평가 및 중립 사이클 기술 추천
@@ -17,6 +18,9 @@ Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV 가치를 용도별�
 - PvP 리그별 추천 기술과 엘리트 기술 표시
 - 메가진화 종족값·타입·레이드 영향 설명
 - 다이맥스/거다이맥스 지원 여부, 개체 자격 확인, 역할별 IV 우선순위와 맥스 기술 설명
+- 일반·그림자·정화 상태 선택과 공격·방어·CP·기술·두 번째 기술 비용 차이 표시
+- 정화 전후 IV·레벨·CP·리그 가치 미리보기와 APEX 루기아·칠색조 예외 처리
+- 금색·은색병뚜껑 목표 IV, 과제 수, 특훈 전후 가치와 CP 제한 초과 경고
 
 ## 로컬 실행
 
@@ -54,6 +58,7 @@ python3 scripts/update_data.py
 
 - [Pokémon GO API](https://github.com/pokemon-go-api/pokemon-go-api): 한국어 이름, GO 종족값, 진화, 기술, 메가 형태
 - [PvPoke](https://github.com/pvpoke/pvpoke): 현재 PvP 리그 랭킹과 추천 기술
+- [PokeMiners Game Masters](https://github.com/PokeMiners/game_masters): 폼별 정화 비용과 그림자·정화 기술
 - [Serebii Max Battles](https://www.serebii.net/pokemongo/maxbattles.shtml): Pokémon GO에서 확인된 다이맥스·거다이맥스 가능 종
 - [PokéAPI sprites](https://github.com/PokeAPI/sprites): GO 전용 이미지가 없는 포켓몬의 대체 이미지
 
@@ -66,6 +71,9 @@ python3 scripts/update_data.py
 - 다이맥스 자격은 종이 아니라 개별 포켓몬에 붙습니다. 지원 종의 일반 개체는 맥스배틀에 사용할 수 없습니다.
 - 진화하면 IV와 레벨은 유지되지만 CP와 종족값 기반 순위는 달라집니다.
 - 폼별 PvP 정보는 도감 번호만으로 추정하지 않고 종족값·타입·기술이 정확히 일치할 때만 연결합니다.
+- 실전 분류는 현재 공개 데이터의 보수적 기준입니다. `수집·관상 중심`은 사용할 수 없다는 뜻이 아니며 시즌·기술·팀 구성에 따라 달라집니다.
+- 그림자 PvP 추천 기술 카드는 일반 폼 참고값이며, 화풀이 제거 가능 시기와 그림자 전용 메타는 게임 안에서 다시 확인해야 합니다.
+- 정화와 완료된 대단한 특훈의 IV 상승은 되돌릴 수 없습니다. 특훈에는 굿 파트너 이상이 필요하고 그림자·4★ 개체는 대상이 아니며, 특훈 개체는 Pokémon HOME으로 보낼 수 없습니다.
 
 ## 주의
 

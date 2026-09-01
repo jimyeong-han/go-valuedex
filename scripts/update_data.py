@@ -16,6 +16,7 @@ POKEDEX_URL = "https://pokemon-go-api.github.io/pokemon-go-api/api/pokedex.json"
 PVP_GM_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
 PVP_RANK_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-{cap}.json"
 MAX_URL = "https://www.serebii.net/pokemongo/maxbattles.shtml"
+POKEMINERS_GM_URL = "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
 
 # A few equivalent moves use different identifiers in the two upstream data
 # sets. Canonicalise only the known one-to-one aliases so every stored
@@ -405,6 +406,7 @@ def build_pokemon(raw, dynamax: set[int], gigantamax: set[int]):
             "mega": mega,
             "pvpSpeciesId": None,
             "shadowEligible": False,
+            "shadow": None,
             "dynamax": max_form and dex in dynamax,
             "gigantamax": max_form and dex in gigantamax,
             "maxCapable": max_form and (dex in dynamax or dex in gigantamax),
@@ -551,6 +553,74 @@ def build_pvp(pokemon):
     }
 
 
+def compact_shadow(settings, rule: str = "standard"):
+    shadow = settings.get("shadow") or {}
+    third_move = settings.get("thirdMove") or {}
+    return {
+        "purificationStardust": shadow["purificationStardustNeeded"],
+        "purificationCandy": shadow["purificationCandyNeeded"],
+        "shadowMove": shadow["shadowChargeMove"],
+        "purifiedMove": shadow["purifiedChargeMove"],
+        "secondMoveStardust": third_move.get("stardustToUnlock"),
+        "secondMoveCandy": third_move.get("candyToUnlock"),
+        "rule": rule,
+    }
+
+
+def apply_shadow_data(pokemon, game_master):
+    settings_by_id: dict[str, list[dict]] = {}
+    for template in game_master:
+        settings = (template.get("data") or {}).get("pokemonSettings")
+        if settings and settings.get("pokemonId"):
+            settings_by_id.setdefault(settings["pokemonId"], []).append(settings)
+
+    for entry in pokemon:
+        if not entry["shadowEligible"]:
+            continue
+        pokemon_id = entry["id"].upper()
+        form_id = entry["formId"]
+        candidates = settings_by_id.get(pokemon_id, [])
+        preferred_forms = [form_id]
+        if entry["isDefault"]:
+            preferred_forms.extend((f"{pokemon_id}_NORMAL", None, pokemon_id))
+        preferred_forms = list(dict.fromkeys(preferred_forms))
+        selected = None
+        for preferred in preferred_forms:
+            matches = [
+                settings for settings in candidates
+                if settings.get("form") == preferred and settings.get("shadow")
+            ]
+            if len(matches) == 1:
+                selected = matches[0]
+                break
+        if not selected:
+            raise RuntimeError(f"Shadow settings missing for {entry['speciesKey']}")
+        gm_stats = selected.get("stats") or {}
+        expected_stats = {
+            "attack": gm_stats.get("baseAttack"),
+            "defense": gm_stats.get("baseDefense"),
+            "stamina": gm_stats.get("baseStamina"),
+        }
+        gm_types = {
+            value.replace("POKEMON_TYPE_", "").lower()
+            for value in (selected.get("type"), selected.get("type2"))
+            if value and value != "POKEMON_TYPE_NONE"
+        }
+        local_types = {value["id"] for value in entry["types"]}
+        if expected_stats != entry["stats"] or gm_types != local_types:
+            raise RuntimeError(f"Shadow form fingerprint mismatch for {entry['speciesKey']}")
+        entry["shadow"] = compact_shadow(selected)
+
+        if pokemon_id in {"LUGIA", "HO_OH"} and entry["isDefault"]:
+            apex = next(
+                (settings for settings in candidates if settings.get("form") == f"{pokemon_id}_S"),
+                None,
+            )
+            if apex and apex.get("shadow"):
+                rule = "apex_lugia" if pokemon_id == "LUGIA" else "apex_ho_oh"
+                entry["shadow"]["apex"] = compact_shadow(apex, rule)
+
+
 def write_json(path: Path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
 
@@ -561,6 +631,7 @@ def main():
     dynamax, gigantamax = max_capabilities()
     pokemon = build_pokemon(raw, dynamax, gigantamax)
     pvp = build_pvp(pokemon)
+    apply_shadow_data(pokemon, fetch_json(POKEMINERS_GM_URL))
     updated = dt.datetime.now(dt.timezone.utc).date().isoformat()
     write_json(DATA_DIR / "pokemon.json", {"updated": updated, "pokemon": pokemon})
     write_json(DATA_DIR / "pvp.json", pvp)

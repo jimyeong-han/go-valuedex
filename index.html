@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f7f7f2">
-  <meta name="description" content="Pokémon GO 개체값 가치, 진화별 활용도, PvP·PvE·맥스배틀 기술을 한 번에 확인하는 도감">
-  <title>GO ValueDex — Pokémon GO 가치 도감</title>
+  <meta name="description" content="Pokémon GO 개체값, 실전 활용도, 진화별 가치, PvP·PvE·맥스배틀 추천 기술을 한 번에 확인하는 도감">
+  <title>GO ValueDex — Pokémon GO 개체값·실전 도감</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://raw.githubusercontent.com">
   <link rel="stylesheet" href="styles.css">
@@ -18,7 +18,7 @@
 
   <main class="app-shell">
     <aside class="dex-sidebar" aria-label="포켓몬 도감 검색">
-      <div class="sidebar-head"><p class="kicker">POKÉMON GO DATABASE</p><h1>가치를 아는 도감</h1><p>좋은 별보다, 맞는 쓰임새를 찾으세요.</p></div>
+      <div class="sidebar-head"><p class="kicker">POKÉMON GO DATABASE</p><h1>개체값·실전 도감</h1><p>IV, PvP, 레이드, Mega·Max 활용도를 한눈에 확인하세요.</p></div>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.7-4.7m2.2-5.3a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
         <input id="searchInput" type="search" placeholder="이름, 영문명 또는 도감 번호" autocomplete="off" aria-label="포켓몬 검색"><kbd>/</kbd>
@@ -37,8 +37,8 @@
   </main>
 
   <footer>
-    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.1" target="_blank" rel="noopener">v1.1</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
-    <p>데이터: <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">Pokémon GO API</a> · <a href="https://pvpoke.com/" target="_blank" rel="noopener">PvPoke</a> · <a href="https://www.serebii.net/pokemongo/maxbattles.shtml" target="_blank" rel="noopener">Serebii</a> · <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a></p>
+    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.2" target="_blank" rel="noopener">v1.2</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
+    <p>데이터: <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">Pokémon GO API</a> · <a href="https://pvpoke.com/" target="_blank" rel="noopener">PvPoke</a> · <a href="https://github.com/PokeMiners/game_masters" target="_blank" rel="noopener">PokeMiners</a> · <a href="https://www.serebii.net/pokemongo/maxbattles.shtml" target="_blank" rel="noopener">Serebii</a> · <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a></p>
     <p>비공식 팬 도구이며 Pokémon, Pokémon GO 및 각 상표는 해당 권리자에게 있습니다. 결과는 일반적인 투자 판단 보조이며 특정 대면전의 breakpoint를 보장하지 않습니다.</p>
   </footer>
 
@@ -49,10 +49,14 @@
       <article><strong>PvE</strong><p>레이드 타이머 때문에 공격을 우선합니다. 다만 종족값·레벨·기술·상성이 IV 차이보다 훨씬 큰 영향을 줄 수 있습니다.</p></article>
       <article><strong>Max</strong><p>공격수는 공격 IV와 노말 기술 타입, 탱커·힐러는 방어와 HP를 봅니다. 실제로 맥스배틀에서 얻은 개체인지도 반드시 확인합니다.</p></article>
       <article><strong>Mega</strong><p>메가진화는 일시적으로 종족값과 타입을 바꾸고 레이드 파티를 강화합니다. 일반 진화와 별개의 운용 형태로 평가합니다.</p></article>
+      <article><strong>실전 활용도</strong><p>현재 폼의 PvP 메타 순위, 일관된 자속 기술의 중립 레이드 화력, Mega·Max 역할을 합쳐 핵심 실전용·조건부 실전용·수집·관상 중심으로 분류합니다.</p></article>
+      <article><strong>그림자·정화</strong><p>그림자 보정과 기술·비용 제약을 적용하고, 정화 전후의 IV·레벨·CP·전투 능력치를 원본을 바꾸지 않고 비교합니다.</p></article>
+      <article><strong>대단한 특훈</strong><p>금색·은색병뚜껑의 목표 IV를 계획해 CP와 리그 가치 변화를 미리 봅니다. 완료한 상승은 되돌릴 수 없고 그림자·4★ 개체는 대상이 아닙니다.</p></article>
     </div>
     <p class="guide-note">IV 순위 1위가 항상 실전 최강은 아닙니다. CMP, 공격 breakpoint, 상대 기술과 팀 조합에 따라 더 높은 공격 개체가 유리할 수 있습니다.</p>
   </dialog>
   <noscript>이 도감은 개체값 계산을 위해 JavaScript가 필요합니다.</noscript>
+  <script src="mechanics.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

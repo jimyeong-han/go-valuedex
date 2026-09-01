@@ -36,6 +36,13 @@ for entry in pokemon:
     assert entry["maxCapable"] == (entry["dynamax"] or entry["gigantamax"])
     if entry["pvpSpeciesId"] is None:
         assert not entry["shadowEligible"]
+    assert entry["shadowEligible"] == bool(entry["shadow"])
+    if entry["shadow"]:
+        shadow = entry["shadow"]
+        assert shadow["purificationStardust"] > 0 and shadow["purificationCandy"] > 0
+        assert shadow["shadowMove"] and shadow["purifiedMove"]
+        assert shadow["secondMoveStardust"] > 0 and shadow["secondMoveCandy"] > 0
+        assert shadow["rule"] == "standard"
 
 assert sum(entry["dynamax"] for entry in pokemon) >= 20
 assert sum(entry["gigantamax"] for entry in pokemon) >= 5
@@ -115,6 +122,15 @@ assert poltchageist["artisan"]["evolutions"][0]["speciesKey"] == "1013:masterpie
 
 for species_key in ("849:amped", "849:low_key", "892:single_strike", "892:rapid_strike"):
     assert by_key[species_key]["maxCapable"]
+
+assert by_key["1:normal"]["shadow"]["purificationStardust"] == 3000
+assert by_key["1:normal"]["shadow"]["purificationCandy"] == 3
+assert by_key["150:normal"]["shadow"]["purificationStardust"] == 20000
+assert not by_key["386:defense"]["shadowEligible"] and by_key["386:defense"]["shadow"] is None
+assert by_key["249:normal"]["shadow"]["apex"]["shadowMove"] == "AEROBLAST_PLUS"
+assert by_key["249:normal"]["shadow"]["apex"]["purifiedMove"] == "AEROBLAST_PLUS_PLUS"
+assert by_key["250:normal"]["shadow"]["apex"]["shadowMove"] == "SACRED_FIRE_PLUS"
+assert by_key["250:normal"]["shadow"]["apex"]["purifiedMove"] == "SACRED_FIRE_PLUS_PLUS"
 
 assert "888:normal" not in by_key
 assert {value["id"] for value in by_key["888:hero"]["types"]} == {"fairy"}
