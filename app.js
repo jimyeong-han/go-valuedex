@@ -121,7 +121,7 @@ function resetScenarioState() {
 }
 function selectPokemon(value,updateHash=true) {
   const key=resolvePokemonKey(value),pokemon=state.byKey.get(key); if(!pokemon)return;
-  state.selected=pokemon; state.mode='great';resetScenarioState();
+  state.selected=pokemon;resetScenarioState();
   if(updateHash) history.pushState(null,'',`#pokemon=${encodeURIComponent(key)}`);
   renderList(); renderDetail(); document.body.classList.add('show-detail');
   if(innerWidth<=760) scrollTo({top:0,behavior:'auto'});
@@ -197,6 +197,7 @@ function evolutionHtml(pokemon) {
 function renderDetail() {
   const p=state.selected,role=archetype(p),utility=battleUtility(p),maxStat=Math.max(p.stats.attack,p.stats.defense,p.stats.stamina,300);
   const stat=(label,key)=>`<div class="stat-box"><span>${label}</span><strong>${p.stats[key]}</strong><div class="stat-bar"><i style="width:${Math.round(p.stats[key]/maxStat*100)}%"></i></div></div>`;
+  const modeTab=(key,label)=>`<button class="mode-tab ${state.mode===key?'active':''}" data-mode="${key}" role="tab" aria-selected="${state.mode===key}">${label}</button>`;
   els.detail.innerHTML=`
     <button type="button" class="mobile-back" data-mobile-back>← 도감으로</button>
     <article class="hero-card"><div class="hero-copy"><span class="dex-number">${padDex(p.dex)} · GENERATION ${p.generation||'–'}</span><h2>${esc(displayName(p))}</h2><p class="english-name">${esc(p.en)}</p><div class="type-row">${typePills(p)}</div><div class="capability-row">${featurePills(p)}<span class="utility-pill ${utility.key}">${esc(utility.label)}</span></div>${formSwitcherHtml(p)}</div><img class="hero-art" src="${esc(p.image||'')}" alt="${esc(displayName(p))}"></article>
@@ -206,7 +207,7 @@ function renderDetail() {
       <section class="panel iv-lab">
         <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력 슬라이더를 움직이면 즉시 다시 계산합니다.</p></div><div class="appraisal"><b id="appraisalStars">–</b><span id="appraisalPercent">–</span></div></div>
         ${statusSelectorHtml(p)}
-        <div class="mode-tabs" role="tablist"><button class="mode-tab active" data-mode="great">슈퍼리그</button><button class="mode-tab" data-mode="ultra">하이퍼리그</button><button class="mode-tab" data-mode="master">마스터리그</button><button class="mode-tab" data-mode="pve">레이드 PvE</button><button class="mode-tab" data-mode="max">맥스배틀</button></div>
+        <div class="mode-tabs" role="tablist">${modeTab('great','슈퍼리그')}${modeTab('ultra','하이퍼리그')}${modeTab('master','마스터리그')}${modeTab('pve','레이드 PvE')}${modeTab('max','맥스배틀')}</div>
         <div class="iv-content"><div class="slider-panel">
           ${ivSlider('공격','attack')}${ivSlider('방어','defense')}${ivSlider('체력','stamina')}
           <div class="level-row"><p class="level-hint">현재 강화 레벨을 알면 진화 후 즉시 사용 가능 여부도 확인할 수 있어요.</p>${levelSlider()}</div>
@@ -261,7 +262,7 @@ function handleDetailClick(event) {
   const condition=event.target.closest('[data-condition]');if(condition&&!condition.disabled){state.condition=condition.dataset.condition;state.apex=false;if(state.condition==='shadow'){state.maxEligible=false;state.training.capType='none';state.training.target={...state.ivs};}updateIvResults();return;}
   const phase=event.target.closest('[data-training-phase]');if(phase){state.training.phase=phase.dataset.trainingPhase;updateIvResults();return;}
   const silver=event.target.closest('[data-silver-stat]');if(silver){state.training.silverStat=silver.dataset.silverStat;syncTrainingTargets();updateIvResults();return;}
-  const mode=event.target.closest('[data-mode]'); if(mode){state.mode=mode.dataset.mode;$$('[data-mode]',els.detail).forEach(button=>button.classList.toggle('active',button.dataset.mode===state.mode));$('#maxToggle').hidden=state.mode!=='max';updateIvResults();}
+  const mode=event.target.closest('[data-mode]'); if(mode){state.mode=mode.dataset.mode;$$('[data-mode]',els.detail).forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});$('#maxToggle').hidden=state.mode!=='max';updateIvResults();}
 }
 
 function statsAt(pokemon,ivs,level) { return Mechanics.statsAt(pokemon,ivs,level); }

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jimyeong-han.github.io/go-valuedex/schemas/pvp.schema.json",
+  "title": "GO ValueDex PvP ranking data",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "updated", "sources", "leagues"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "generatedAt": {"type": "string", "format": "date-time"},
+    "updated": {"type": "string", "minLength": 1},
+    "sources": {
+      "type": "object",
+      "required": ["pvpokeGameMaster", "pvpokeGreatLeague", "pvpokeUltraLeague", "pvpokeMasterLeague"],
+      "additionalProperties": false,
+      "properties": {
+        "pvpokeGameMaster": {"$ref": "#/$defs/source"},
+        "pvpokeGreatLeague": {"$ref": "#/$defs/source"},
+        "pvpokeUltraLeague": {"$ref": "#/$defs/source"},
+        "pvpokeMasterLeague": {"$ref": "#/$defs/source"}
+      }
+    },
+    "leagues": {
+      "type": "object",
+      "required": ["great", "ultra", "master"],
+      "additionalProperties": false,
+      "properties": {
+        "great": {"$ref": "#/$defs/league"},
+        "ultra": {"$ref": "#/$defs/league"},
+        "master": {"$ref": "#/$defs/league"}
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["url", "retrievedAt", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "retrievedAt": {"type": "string", "format": "date-time"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "sourceRef": {
+      "type": "string",
+      "enum": ["pvpokeGameMaster", "pvpokeGreatLeague", "pvpokeUltraLeague", "pvpokeMasterLeague"]
+    },
+    "ranking": {
+      "type": "object",
+      "required": ["rank", "score", "rating", "moves", "species", "speciesId", "sourceRefs"],
+      "additionalProperties": false,
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1},
+        "score": {"type": "number", "minimum": 0, "maximum": 100},
+        "rating": {"type": "number", "minimum": 0},
+        "moves": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Z0-9_]+$"}
+        },
+        "species": {"type": "string", "minLength": 1},
+        "speciesId": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "sourceRefs": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sourceRef"}
+        }
+      }
+    },
+    "league": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[1-9][0-9]*:[a-z0-9_]+$"},
+      "additionalProperties": {"$ref": "#/$defs/ranking"}
+    }
+  }
+}

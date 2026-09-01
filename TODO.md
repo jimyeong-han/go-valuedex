@@ -6,9 +6,9 @@
 
 ## 바로 다음에 할 일
 
-1. 데이터 계약과 자동 테스트 강화
-2. 내 포켓몬 보유함과 비교
-3. 강화 비용·투자 시나리오
+1. 내 포켓몬 보유함과 비교
+2. 강화 비용·투자 시나리오
+3. PvP breakpoint·bulkpoint·CMP 분석
 
 ## P0 — 판정 정확도와 데이터 기반
 
@@ -61,7 +61,7 @@
 
 공식 참고: [골드 병뚜껑과 하이퍼트레이닝](https://pokemongo.com/news/go-pass-ancients-recovered-2025), [실버 병뚜껑](https://pokemongo.com/news/into-the-wild-2025)
 
-### [ ] 데이터 계약과 자동 품질검사
+### [x] 데이터 계약과 자동 품질검사 — v1.3
 
 - `pokemon.json`, `pvp.json`에 버전이 있는 JSON Schema 도입
 - 레코드마다 원본 출처와 갱신 시각을 추적할 수 있게 구성

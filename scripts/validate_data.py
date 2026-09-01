@@ -3,12 +3,31 @@ import json
 import math
 import re
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-pokemon = json.loads((root / "data/pokemon.json").read_text(encoding="utf-8"))["pokemon"]
+pokemon_data = json.loads((root / "data/pokemon.json").read_text(encoding="utf-8"))
+pokemon = pokemon_data["pokemon"]
 pvp_data = json.loads((root / "data/pvp.json").read_text(encoding="utf-8"))
 pvp = pvp_data["leagues"]
+
+
+def parse_rfc3339(value):
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    assert parsed.tzinfo is not None
+    return parsed
+
+
+assert pokemon_data["schemaVersion"] == pvp_data["schemaVersion"] == 1
+assert pokemon_data["generatedAt"] == pvp_data["generatedAt"]
+generated_at = parse_rfc3339(pokemon_data["generatedAt"])
+for document in (pokemon_data, pvp_data):
+    assert document["sources"]
+    for source in document["sources"].values():
+        assert source["url"].startswith("https://")
+        assert parse_rfc3339(source["retrievedAt"]) <= generated_at
+        assert re.fullmatch(r"[a-f0-9]{64}", source["sha256"])
 
 assert len(pokemon) >= 1150, "Form-aware Pokédex is unexpectedly small"
 by_key = {entry["speciesKey"]: entry for entry in pokemon}
@@ -37,6 +56,10 @@ for entry in pokemon:
     if entry["pvpSpeciesId"] is None:
         assert not entry["shadowEligible"]
     assert entry["shadowEligible"] == bool(entry["shadow"])
+    source_refs = set(entry["sourceRefs"])
+    assert source_refs <= set(pokemon_data["sources"])
+    assert {"pokemonGoApi", "pvpokeGameMaster", "serebiiMaxBattles"} <= source_refs
+    assert ("pokeMinersGameMaster" in source_refs) == bool(entry["shadow"])
     if entry["shadow"]:
         shadow = entry["shadow"]
         assert shadow["purificationStardust"] > 0 and shadow["purificationCandy"] > 0
@@ -56,11 +79,17 @@ for dex in (52, 131, 143, 861):
     assert default["gigantamax"] and default["maxCapable"]
 
 for league, rankings in pvp.items():
+    league_source = {
+        "great": "pvpokeGreatLeague",
+        "ultra": "pvpokeUltraLeague",
+        "master": "pvpokeMasterLeague",
+    }[league]
     for species_key, meta in rankings.items():
         entry = by_key[species_key]
         fast_moves = {move["id"] for move in entry["moves"]["fast"]}
         charged_moves = {move["id"] for move in entry["moves"]["charged"]}
         assert meta["speciesId"] == entry["pvpSpeciesId"]
+        assert set(meta["sourceRefs"]) == {"pvpokeGameMaster", league_source}
         assert meta["moves"], f"{league} {species_key} has no recommended moves"
         assert meta["moves"][0] in fast_moves, (
             f"{league} {species_key} recommends unavailable fast move {meta['moves'][0]}"

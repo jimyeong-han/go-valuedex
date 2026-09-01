@@ -2,7 +2,7 @@
 
 Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활용도를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
 
-현재 버전: **1.2** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.2) · [변경 기록](CHANGELOG.md)
+현재 버전: **1.3** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.3) · [변경 기록](CHANGELOG.md)
 
 ## 제공 기능
 
@@ -21,6 +21,8 @@ Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활�
 - 일반·그림자·정화 상태 선택과 공격·방어·CP·기술·두 번째 기술 비용 차이 표시
 - 정화 전후 IV·레벨·CP·리그 가치 미리보기와 APEX 루기아·칠색조 예외 처리
 - 금색·은색병뚜껑 목표 IV, 과제 수, 특훈 전후 가치와 CP 제한 초과 경고
+- 버전형 JSON Schema, 출처 URL·수집 시각·SHA-256과 대량 변경 방지 검사
+- 데스크톱·390px 모바일 Playwright CI와 검증 성공 후에만 실행되는 GitHub Pages 배포
 
 ## 로컬 실행
 
@@ -39,8 +41,8 @@ python3 -m http.server 8000
 ## GitHub Pages 배포
 
 1. 이 디렉터리를 GitHub 저장소의 `main` 브랜치에 올립니다.
-2. **Settings → Pages → Build and deployment**에서 `Deploy from a branch`를 선택합니다.
-3. `main`과 `/ (root)`를 선택해 저장합니다.
+2. **Settings → Pages → Build and deployment → Source**에서 `GitHub Actions`를 선택합니다.
+3. `main`에 푸시하면 품질검사를 모두 통과한 정적 파일만 Pages에 배포됩니다.
 
 앱은 완전한 정적 파일이므로 별도 환경변수나 API 키가 필요하지 않습니다.
 
@@ -52,7 +54,22 @@ python3 -m http.server 8000
 python3 scripts/update_data.py
 ```
 
-매주 데이터 스냅샷을 확인하는 GitHub Actions 워크플로도 포함되어 있습니다. 외부 소스 구조가 바뀌면 안전 검증에 실패하고 기존 데이터는 그대로 유지됩니다.
+매주 데이터 스냅샷을 확인하는 GitHub Actions 워크플로도 포함되어 있습니다. 외부 소스 구조가 바뀌거나 데이터가 비정상적으로 대량 삭제되면 검증에 실패합니다. 정상 변경도 `main`에 직접 쓰지 않고 검토용 PR만 만들며 자동 병합하지 않습니다.
+
+로컬에서 전체 품질검사를 실행하려면 다음을 사용합니다.
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+npm ci
+python3 scripts/validate_schema.py
+python3 scripts/validate_data.py
+python3 -m unittest discover -s tests -p 'test_*.py'
+npm run test:mechanics
+npx playwright install chromium
+npm run test:browser
+```
+
+브라우저 테스트는 앱을 `/go-valuedex/` 하위 경로에 올려 GitHub Pages 프로젝트 사이트와 같은 조건으로 검사합니다.
 
 데이터 출처:
 
@@ -61,6 +78,8 @@ python3 scripts/update_data.py
 - [PokeMiners Game Masters](https://github.com/PokeMiners/game_masters): 폼별 정화 비용과 그림자·정화 기술
 - [Serebii Max Battles](https://www.serebii.net/pokemongo/maxbattles.shtml): Pokémon GO에서 확인된 다이맥스·거다이맥스 가능 종
 - [PokéAPI sprites](https://github.com/PokeAPI/sprites): GO 전용 이미지가 없는 포켓몬의 대체 이미지
+
+각 스냅샷은 `schemaVersion`, 생성 시각과 원본별 URL·수집 시각·SHA-256을 포함합니다. 따라서 `master`나 `latest` 주소의 내용이 나중에 바뀌어도 당시 입력 원문을 식별할 수 있습니다.
 
 ## 판정 범위
 

@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jimyeong-han.github.io/go-valuedex/schemas/pokemon.schema.json",
+  "title": "GO ValueDex Pokémon data",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "updated", "sources", "pokemon"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "generatedAt": {"type": "string", "format": "date-time"},
+    "updated": {"type": "string", "format": "date"},
+    "sources": {
+      "type": "object",
+      "required": ["pokemonGoApi", "pvpokeGameMaster", "serebiiMaxBattles", "pokeMinersGameMaster"],
+      "additionalProperties": false,
+      "properties": {
+        "pokemonGoApi": {"$ref": "#/$defs/source"},
+        "pvpokeGameMaster": {"$ref": "#/$defs/source"},
+        "serebiiMaxBattles": {"$ref": "#/$defs/source"},
+        "pokeMinersGameMaster": {"$ref": "#/$defs/source"}
+      }
+    },
+    "pokemon": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/pokemon"}
+    }
+  },
+  "$defs": {
+    "typeId": {
+      "type": "string",
+      "enum": ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"]
+    },
+    "source": {
+      "type": "object",
+      "required": ["url", "retrievedAt", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "retrievedAt": {"type": "string", "format": "date-time"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "sourceRef": {
+      "type": "string",
+      "enum": ["pokemonGoApi", "pvpokeGameMaster", "serebiiMaxBattles", "pokeMinersGameMaster"]
+    },
+    "stats": {
+      "type": "object",
+      "required": ["attack", "defense", "stamina"],
+      "additionalProperties": false,
+      "properties": {
+        "attack": {"type": "integer", "minimum": 1},
+        "defense": {"type": "integer", "minimum": 1},
+        "stamina": {"type": "integer", "minimum": 1}
+      }
+    },
+    "type": {
+      "type": "object",
+      "required": ["id", "ko"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/typeId"},
+        "ko": {"type": "string", "minLength": 1}
+      }
+    },
+    "move": {
+      "type": "object",
+      "required": ["id", "ko", "en", "type", "typeKo", "power", "energy", "duration", "pvpPower", "pvpEnergy", "turns", "elite"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+        "ko": {"type": "string", "minLength": 1},
+        "en": {"type": "string", "minLength": 1},
+        "type": {"$ref": "#/$defs/typeId"},
+        "typeKo": {"type": "string", "minLength": 1},
+        "power": {"type": "integer"},
+        "energy": {"type": "integer"},
+        "duration": {"type": "integer", "minimum": 0},
+        "pvpPower": {"type": "integer"},
+        "pvpEnergy": {"type": "integer"},
+        "turns": {"type": "integer", "minimum": 0},
+        "elite": {"type": "boolean"}
+      }
+    },
+    "evolution": {
+      "type": "object",
+      "required": ["dex", "speciesKey", "candy", "item"],
+      "additionalProperties": false,
+      "properties": {
+        "dex": {"type": "integer", "minimum": 1},
+        "speciesKey": {"type": "string", "pattern": "^[1-9][0-9]*:[a-z0-9_]+$"},
+        "candy": {"type": "integer", "minimum": 0},
+        "item": {"type": ["string", "null"]}
+      }
+    },
+    "mega": {
+      "type": "object",
+      "required": ["id", "name", "stats", "types", "image"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "stats": {"$ref": "#/$defs/stats"},
+        "types": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/type"}
+        },
+        "image": {"type": "string", "format": "uri"}
+      }
+    },
+    "shadowCore": {
+      "type": "object",
+      "required": ["purificationStardust", "purificationCandy", "shadowMove", "purifiedMove", "secondMoveStardust", "secondMoveCandy", "rule"],
+      "properties": {
+        "purificationStardust": {"type": "integer", "minimum": 1},
+        "purificationCandy": {"type": "integer", "minimum": 1},
+        "shadowMove": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+        "purifiedMove": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+        "secondMoveStardust": {"type": "integer", "minimum": 1},
+        "secondMoveCandy": {"type": "integer", "minimum": 1},
+        "rule": {"type": "string", "minLength": 1}
+      }
+    },
+    "apexShadow": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/shadowCore"},
+        {
+          "properties": {
+            "rule": {"enum": ["apex_lugia", "apex_ho_oh"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "shadow": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/shadowCore"},
+        {
+          "properties": {
+            "rule": {"const": "standard"},
+            "apex": {"$ref": "#/$defs/apexShadow"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pokemon": {
+      "type": "object",
+      "required": ["dex", "speciesKey", "formId", "formSlug", "id", "isDefault", "name", "en", "baseName", "baseEn", "generation", "stats", "types", "class", "image", "evolutions", "moves", "mega", "pvpSpeciesId", "shadowEligible", "shadow", "dynamax", "gigantamax", "maxCapable", "sourceRefs"],
+      "additionalProperties": false,
+      "properties": {
+        "dex": {"type": "integer", "minimum": 1},
+        "speciesKey": {"type": "string", "pattern": "^[1-9][0-9]*:[a-z0-9_]+$"},
+        "formId": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+        "formSlug": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "isDefault": {"type": "boolean"},
+        "name": {"type": "string", "minLength": 1},
+        "en": {"type": "string", "minLength": 1},
+        "baseName": {"type": "string", "minLength": 1},
+        "baseEn": {"type": "string", "minLength": 1},
+        "generation": {"type": "integer", "minimum": 1},
+        "stats": {"$ref": "#/$defs/stats"},
+        "types": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/type"}
+        },
+        "class": {"type": ["string", "null"]},
+        "image": {"type": "string", "format": "uri"},
+        "evolutions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/evolution"}
+        },
+        "moves": {
+          "type": "object",
+          "required": ["fast", "charged"],
+          "additionalProperties": false,
+          "properties": {
+            "fast": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/move"}},
+            "charged": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/move"}}
+          }
+        },
+        "mega": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/mega"}},
+        "pvpSpeciesId": {"type": ["string", "null"]},
+        "shadowEligible": {"type": "boolean"},
+        "shadow": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/shadow"}]},
+        "dynamax": {"type": "boolean"},
+        "gigantamax": {"type": "boolean"},
+        "maxCapable": {"type": "boolean"},
+        "sourceRefs": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sourceRef"}
+        }
+      }
+    }
+  }
+}

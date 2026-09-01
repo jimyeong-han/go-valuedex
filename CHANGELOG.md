@@ -8,6 +8,34 @@ GO ValueDex의 사용자에게 보이는 변경 사항을 버전별로 기록합
 - `1.1` 이후: 큰 기능 단위의 마이너 릴리즈
 - 긴급 오류 수정이 필요하면 `1.1.1`과 같이 패치 버전 사용
 
+## [1.3] - 2026-09-01
+
+### 추가
+
+- `pokemon.json`, `pvp.json` Draft 2020-12 JSON Schema와 `schemaVersion: 1`
+- 데이터 생성 시각과 원본별 URL·수집 시각·SHA-256, 레코드별 출처 참조
+- 폼·도감 번호·종족값·타입·기술 풀·그림자·Max·PvP 데이터의 비정상 대량 변경을 막는 diff guard
+- 정상 문서를 의도적으로 훼손해 검증 실패를 확인하는 데이터 계약·diff guard 회귀 테스트
+- 데스크톱과 390px 모바일을 모두 실행하는 Playwright 브라우저 테스트
+- 품질검사 성공 후에만 공식 GitHub Pages artifact를 배포하는 워크플로
+
+### 변경
+
+- 주간 데이터 갱신이 `main`에 직접 푸시하지 않고 검증된 전용 브랜치와 검토용 PR만 만들도록 변경
+- 타임스탬프만 달라진 스냅샷은 새 PR을 만들지 않도록 실제 데이터·원본 해시 변화를 분리
+- Playwright를 `1.62.1`로 고정하고 외부 이미지 네트워크 없이 `/go-valuedex/` 프로젝트 하위 경로를 재현
+
+### 수정
+
+- 진화 계보 또는 `같은 IV로 진화하면`에서 다른 진화 단계로 이동할 때 선택한 리그가 슈퍼리그로 초기화되던 문제 수정
+- 진화 이동 후에도 IV·레벨뿐 아니라 리그 탭과 해당 리그 계산 결과를 그대로 유지
+
+### 검증
+
+- 오프라인 JSON Schema·출처 교차참조와 기존 1,188폼/1,607개 PvP 랭킹 검증
+- 데이터 계약 9개와 diff guard 12개 회귀 테스트
+- 계산 모듈 13개, Playwright 데스크톱 8개·390px 모바일 2개 테스트 통과
+
 ## [1.2] - 2026-09-01
 
 ### 추가
@@ -82,3 +110,4 @@ GO ValueDex의 사용자에게 보이는 변경 사항을 버전별로 기록합
 [1.0]: https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.0
 [1.1]: https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.1
 [1.2]: https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.2
+[1.3]: https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.3

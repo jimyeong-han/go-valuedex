@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import re
 import urllib.request
@@ -17,6 +18,19 @@ PVP_GM_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/ga
 PVP_RANK_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-{cap}.json"
 MAX_URL = "https://www.serebii.net/pokemongo/maxbattles.shtml"
 POKEMINERS_GM_URL = "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+SCHEMA_VERSION = 1
+
+SOURCE_IDS = {
+    "pokemon_go_api": "pokemonGoApi",
+    "pvpoke_game_master": "pvpokeGameMaster",
+    "pvpoke_great": "pvpokeGreatLeague",
+    "pvpoke_ultra": "pvpokeUltraLeague",
+    "pvpoke_master": "pvpokeMasterLeague",
+    "serebii_max": "serebiiMaxBattles",
+    "pokeminers_game_master": "pokeMinersGameMaster",
+}
+RETRIEVED_AT: dict[str, str] = {}
+SOURCE_SHA256: dict[str, str] = {}
 
 # A few equivalent moves use different identifiers in the two upstream data
 # sets. Canonicalise only the known one-to-one aliases so every stored
@@ -111,13 +125,53 @@ MAX_FORM_SLUGS = {
 def fetch_json(url: str):
     request = urllib.request.Request(url, headers={"User-Agent": "GO-ValueDex-data-builder/1.0"})
     with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)
+        raw = response.read()
+    value = json.loads(raw)
+    RETRIEVED_AT[url] = rfc3339_now()
+    SOURCE_SHA256[url] = hashlib.sha256(raw).hexdigest()
+    return value
 
 
 def fetch_text(url: str, encoding: str = "utf-8") -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "GO-ValueDex-data-builder/1.0"})
     with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read().decode(encoding, errors="replace")
+        raw = response.read()
+    value = raw.decode(encoding, errors="replace")
+    RETRIEVED_AT[url] = rfc3339_now()
+    SOURCE_SHA256[url] = hashlib.sha256(raw).hexdigest()
+    return value
+
+
+def rfc3339_now() -> str:
+    """Return a compact UTC timestamp accepted by RFC 3339 validators."""
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def source(url: str) -> dict[str, str]:
+    try:
+        retrieved_at = RETRIEVED_AT[url]
+        sha256 = SOURCE_SHA256[url]
+    except KeyError as exc:
+        raise RuntimeError(f"No retrieval provenance recorded for {url}") from exc
+    return {"url": url, "retrievedAt": retrieved_at, "sha256": sha256}
+
+
+def pokemon_sources() -> dict[str, dict[str, str]]:
+    return {
+        SOURCE_IDS["pokemon_go_api"]: source(POKEDEX_URL),
+        SOURCE_IDS["pvpoke_game_master"]: source(PVP_GM_URL),
+        SOURCE_IDS["serebii_max"]: source(MAX_URL),
+        SOURCE_IDS["pokeminers_game_master"]: source(POKEMINERS_GM_URL),
+    }
+
+
+def pvp_sources() -> dict[str, dict[str, str]]:
+    return {
+        SOURCE_IDS["pvpoke_game_master"]: source(PVP_GM_URL),
+        SOURCE_IDS["pvpoke_great"]: source(PVP_RANK_URL.format(cap=1500)),
+        SOURCE_IDS["pvpoke_ultra"]: source(PVP_RANK_URL.format(cap=2500)),
+        SOURCE_IDS["pvpoke_master"]: source(PVP_RANK_URL.format(cap=10000)),
+    }
 
 
 def max_capabilities() -> tuple[set[int], set[int]]:
@@ -410,6 +464,11 @@ def build_pokemon(raw, dynamax: set[int], gigantamax: set[int]):
             "dynamax": max_form and dex in dynamax,
             "gigantamax": max_form and dex in gigantamax,
             "maxCapable": max_form and (dex in dynamax or dex in gigantamax),
+            "sourceRefs": [
+                SOURCE_IDS["pokemon_go_api"],
+                SOURCE_IDS["pvpoke_game_master"],
+                SOURCE_IDS["serebii_max"],
+            ],
         })
     return sorted(output, key=lambda item: (item["dex"], not item["isDefault"], item["name"]))
 
@@ -523,6 +582,11 @@ def build_pvp(pokemon):
             species and "shadoweligible" in set(species.get("tags") or [])
         )
     leagues = {}
+    league_sources = {
+        "great": SOURCE_IDS["pvpoke_great"],
+        "ultra": SOURCE_IDS["pvpoke_ultra"],
+        "master": SOURCE_IDS["pvpoke_master"],
+    }
     for league, cap in (("great", 1500), ("ultra", 2500), ("master", 10000)):
         rankings = fetch_json(PVP_RANK_URL.format(cap=cap))
         ranked_by_id = {rank["speciesId"]: (index, rank) for index, rank in enumerate(rankings)}
@@ -545,6 +609,10 @@ def build_pvp(pokemon):
                 "moves": moves,
                 "species": species.get("speciesName"),
                 "speciesId": species["speciesId"],
+                "sourceRefs": [
+                    SOURCE_IDS["pvpoke_game_master"],
+                    league_sources[league],
+                ],
             }
         leagues[league] = selected
     return {
@@ -610,6 +678,7 @@ def apply_shadow_data(pokemon, game_master):
         if expected_stats != entry["stats"] or gm_types != local_types:
             raise RuntimeError(f"Shadow form fingerprint mismatch for {entry['speciesKey']}")
         entry["shadow"] = compact_shadow(selected)
+        entry["sourceRefs"].append(SOURCE_IDS["pokeminers_game_master"])
 
         if pokemon_id in {"LUGIA", "HO_OH"} and entry["isDefault"]:
             apex = next(
@@ -632,9 +701,22 @@ def main():
     pokemon = build_pokemon(raw, dynamax, gigantamax)
     pvp = build_pvp(pokemon)
     apply_shadow_data(pokemon, fetch_json(POKEMINERS_GM_URL))
-    updated = dt.datetime.now(dt.timezone.utc).date().isoformat()
-    write_json(DATA_DIR / "pokemon.json", {"updated": updated, "pokemon": pokemon})
-    write_json(DATA_DIR / "pvp.json", pvp)
+    generated_at = rfc3339_now()
+    updated = generated_at[:10]
+    write_json(DATA_DIR / "pokemon.json", {
+        "schemaVersion": SCHEMA_VERSION,
+        "generatedAt": generated_at,
+        "updated": updated,
+        "sources": pokemon_sources(),
+        "pokemon": pokemon,
+    })
+    write_json(DATA_DIR / "pvp.json", {
+        "schemaVersion": SCHEMA_VERSION,
+        "generatedAt": generated_at,
+        "updated": pvp["updated"],
+        "sources": pvp_sources(),
+        "leagues": pvp["leagues"],
+    })
     max_capable = sum(entry["maxCapable"] for entry in pokemon)
     print(
         f"Wrote {len(pokemon)} valuation forms across {len(raw)} Pokédex numbers, "
