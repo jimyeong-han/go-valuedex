@@ -25,12 +25,15 @@ TEST_LIMITS = Limits(
     removed_form_floor=1,
     shadow_drop_ratio=0.10,
     shadow_drop_floor=1,
+    shadow_removal_cap=3,
     max_capable_drop_ratio=0.10,
     max_capable_drop_floor=1,
+    max_capable_removal_cap=2,
     move_coverage_drop_ratio=0.05,
     move_coverage_drop_floor=1,
     pvp_drop_ratio=0.10,
     pvp_drop_floor=1,
+    pvp_removal_cap=3,
     fingerprint_change_ratio=0.05,
     fingerprint_change_floor=1,
     move_signature_change_ratio=0.05,
@@ -120,7 +123,64 @@ class DataDiffGuardTests(unittest.TestCase):
             snapshot(baseline_documents), snapshot(current_documents), TEST_LIMITS
         )
         self.assertFalse(report.ok)
-        self.assertTrue(any("PvP great coverage fell" in error for error in report.errors))
+        self.assertTrue(any("PvP great lost" in error for error in report.errors))
+
+    def test_equal_count_shadow_and_max_membership_swaps_are_rejected(self):
+        baseline_documents = documents(100)
+        for index, record in enumerate(baseline_documents[0]["pokemon"]):
+            record["shadowEligible"] = index < 50
+            record["maxCapable"] = index < 50
+        current_documents = copy.deepcopy(baseline_documents)
+
+        # Ten percent would allow five removals from either 50-member set. The
+        # lower absolute caps must still reject these equal-count replacements.
+        for record in current_documents[0]["pokemon"][:4]:
+            record["shadowEligible"] = False
+        for record in current_documents[0]["pokemon"][50:54]:
+            record["shadowEligible"] = True
+
+        for record in current_documents[0]["pokemon"][:3]:
+            record["maxCapable"] = False
+        for record in current_documents[0]["pokemon"][50:53]:
+            record["maxCapable"] = True
+
+        report = compare_snapshots(
+            snapshot(baseline_documents), snapshot(current_documents), TEST_LIMITS
+        )
+        self.assertFalse(report.ok)
+        self.assertEqual(
+            len(snapshot(baseline_documents).shadow_keys),
+            len(snapshot(current_documents).shadow_keys),
+        )
+        self.assertEqual(
+            len(snapshot(baseline_documents).max_capable_keys),
+            len(snapshot(current_documents).max_capable_keys),
+        )
+        self.assertTrue(any("Shadow eligibility lost" in error for error in report.errors))
+        self.assertTrue(any("Max capability lost" in error for error in report.errors))
+
+    def test_equal_count_pvp_membership_swap_is_rejected(self):
+        baseline_documents = documents(50)
+        for key in [f"{dex}:normal" for dex in range(41, 51)]:
+            del baseline_documents[1]["leagues"]["great"][key]
+        current_documents = copy.deepcopy(baseline_documents)
+        # Ten percent permits four removals; the three-entry cap is stricter.
+        for dex in range(1, 5):
+            del current_documents[1]["leagues"]["great"][f"{dex}:normal"]
+        for dex in range(41, 45):
+            current_documents[1]["leagues"]["great"][f"{dex}:normal"] = {}
+
+        baseline_snapshot = snapshot(baseline_documents)
+        current_snapshot = snapshot(current_documents)
+        report = compare_snapshots(
+            baseline_snapshot, current_snapshot, TEST_LIMITS
+        )
+        self.assertEqual(
+            len(baseline_snapshot.pvp_keys["great"]),
+            len(current_snapshot.pvp_keys["great"]),
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(any("PvP great lost" in error for error in report.errors))
 
     def test_mass_capability_and_move_mutations_are_rejected(self):
         baseline_documents = documents()

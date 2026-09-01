@@ -36,12 +36,12 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop-chromium',
-      testMatch: /desktop\.spec\.mjs/,
+      testMatch: /(?:desktop|collection)\.spec\.mjs/,
       use: { viewport: { width: 1440, height: 900 } }
     },
     {
       name: 'mobile-chromium',
-      testMatch: /mobile\.spec\.mjs/,
+      testMatch: /(?:mobile|collection)\.spec\.mjs/,
       use: {
         viewport: { width: 390, height: 844 },
         isMobile: true,

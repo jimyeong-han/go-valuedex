@@ -9,11 +9,12 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://raw.githubusercontent.com">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="collection.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#" aria-label="GO ValueDex 홈"><span class="brand-mark" aria-hidden="true"><i></i></span><span>GO <b>ValueDex</b></span></a>
-    <nav><button class="nav-button" id="openGuide" type="button">판정 기준</button><a class="nav-button" href="https://pokemongolive.com/" target="_blank" rel="noopener">공식 사이트 ↗</a></nav>
+    <nav><button class="nav-button collection-nav" id="openCollection" type="button">내 보유함 <span id="collectionCount" aria-label="저장한 포켓몬 0마리">0</span></button><button class="nav-button" id="openGuide" type="button">판정 기준</button><a class="nav-button" href="https://pokemongolive.com/" target="_blank" rel="noopener">공식 사이트 ↗</a></nav>
   </header>
 
   <main class="app-shell">
@@ -37,13 +38,13 @@
   </main>
 
   <footer>
-    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.3" target="_blank" rel="noopener">v1.3</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
+    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.4" target="_blank" rel="noopener">v1.4</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
     <p>데이터: <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">Pokémon GO API</a> · <a href="https://pvpoke.com/" target="_blank" rel="noopener">PvPoke</a> · <a href="https://github.com/PokeMiners/game_masters" target="_blank" rel="noopener">PokeMiners</a> · <a href="https://www.serebii.net/pokemongo/maxbattles.shtml" target="_blank" rel="noopener">Serebii</a> · <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a></p>
     <p>비공식 팬 도구이며 Pokémon, Pokémon GO 및 각 상표는 해당 권리자에게 있습니다. 결과는 일반적인 투자 판단 보조이며 특정 대면전의 breakpoint를 보장하지 않습니다.</p>
   </footer>
 
-  <dialog id="guideDialog">
-    <form method="dialog"><button class="dialog-close" aria-label="닫기">×</button></form><p class="kicker">HOW WE SCORE</p><h2>숫자를 가치로 바꾸는 기준</h2>
+  <dialog id="guideDialog" aria-labelledby="guideDialogTitle">
+    <form method="dialog"><button class="dialog-close" aria-label="닫기">×</button></form><p class="kicker">HOW WE SCORE</p><h2 id="guideDialogTitle">숫자를 가치로 바꾸는 기준</h2>
     <div class="guide-grid">
       <article><strong>PvP</strong><p>4,096개 IV 조합을 모두 계산해 CP 제한 안에서 가능한 최고 레벨의 능력치 곱을 비교합니다. 종 자체의 메타 점수와 개체 순위는 별도로 보여줍니다.</p></article>
       <article><strong>PvE</strong><p>레이드 타이머 때문에 공격을 우선합니다. 다만 종족값·레벨·기술·상성이 IV 차이보다 훨씬 큰 영향을 줄 수 있습니다.</p></article>
@@ -52,11 +53,64 @@
       <article><strong>실전 활용도</strong><p>현재 폼의 PvP 메타 순위, 일관된 자속 기술의 중립 레이드 화력, Mega·Max 역할을 합쳐 핵심 실전용·조건부 실전용·수집·관상 중심으로 분류합니다.</p></article>
       <article><strong>그림자·정화</strong><p>그림자 보정과 기술·비용 제약을 적용하고, 정화 전후의 IV·레벨·CP·전투 능력치를 원본을 바꾸지 않고 비교합니다.</p></article>
       <article><strong>대단한 특훈</strong><p>금색·은색병뚜껑의 목표 IV를 계획해 CP와 리그 가치 변화를 미리 봅니다. 완료한 상승은 되돌릴 수 없고 그림자·4★ 개체는 대상이 아닙니다.</p></article>
+      <article><strong>내 보유함</strong><p>보유 개체는 로그인 없이 현재 브라우저의 IndexedDB에 저장됩니다. 민감한 개인정보는 별명·태그·메모에 적지 말고, 기기 이동이나 사이트 데이터 삭제에 대비해 JSON 백업을 보관하세요.</p></article>
     </div>
     <p class="guide-note">IV 순위 1위가 항상 실전 최강은 아닙니다. CMP, 공격 breakpoint, 상대 기술과 팀 조합에 따라 더 높은 공격 개체가 유리할 수 있습니다.</p>
   </dialog>
+
+  <dialog id="collectionDialog" class="collection-dialog" aria-labelledby="collectionDialogTitle">
+    <div class="collection-shell">
+      <header class="collection-head"><div><p class="kicker">MY POKÉMON</p><h2 id="collectionDialogTitle">내 포켓몬 보유함</h2><p id="collectionSummary" role="status" aria-live="polite" aria-atomic="true">저장한 개체를 불러오는 중입니다.</p></div><button class="dialog-close" type="button" data-close-dialog="collectionDialog" aria-label="보유함 닫기">×</button></header>
+      <p class="local-warning"><strong>이 브라우저에만 저장됩니다.</strong> 사이트 데이터를 삭제하거나 기기를 바꾸면 사라질 수 있으니 JSON 백업을 보관하세요. GitHub Pages의 같은 사용자 도메인에 있는 다른 프로젝트와 저장소 접근 범위를 공유할 수 있으므로 별명·태그·메모에 민감한 개인정보를 적지 마세요.</p>
+      <div id="collectionRecoveryWarning" class="storage-error recovery-warning" hidden><span><strong>읽을 수 없는 저장 원본 <b id="collectionRecoveryCount">0</b>건을 보존 중입니다.</strong> 정상 기록은 계속 사용할 수 있습니다. 보유함을 교체하거나 비우기 전에 원본을 내려받아 보관하세요.</span><button id="exportCollectionRecovery" type="button">복구 원본 JSON</button></div>
+      <div class="collection-toolbar">
+        <label class="collection-search"><span>보유함 검색</span><input id="collectionSearch" type="search" placeholder="이름·별명·태그·메모" autocomplete="off"></label>
+        <label><span>상태</span><select id="collectionStatus"><option value="">모든 상태</option><option value="normal">일반</option><option value="shadow">그림자</option><option value="purified">정화됨</option></select></label>
+        <label><span>태그</span><select id="collectionTag"><option value="">모든 태그</option></select></label>
+        <label><span>정렬</span><select id="collectionSort"><option value="updated">최근 수정</option><option value="dex">도감 번호</option><option value="ivTotal">IV 합계</option><option value="great">슈퍼리그</option><option value="ultra">하이퍼리그</option><option value="master">마스터리그</option><option value="pve">레이드 PvE</option><option value="max">Max</option><option value="mega">Mega</option></select></label>
+        <label class="favorite-filter"><input id="collectionFavorite" type="checkbox"> 즐겨찾기만</label>
+      </div>
+      <div class="collection-actions">
+        <button id="toggleCompare" type="button">비교 선택</button>
+        <details class="backup-menu"><summary>가져오기·내보내기</summary><div><label>가져오기 방식<select id="collectionImportMode"><option value="merge">기존 보유함과 병합</option><option value="replace">검증 후 전체 교체</option></select></label><button id="exportCollectionJson" type="button">JSON 백업</button><button id="exportCollectionCsv" type="button">CSV 내보내기</button><button id="importCollection" type="button">파일 가져오기</button><input id="collectionFile" type="file" accept=".json,.csv,application/json,text/csv" hidden><button id="clearCollection" class="danger-button" type="button">보유함 비우기</button></div></details>
+      </div>
+      <div id="collectionList" class="collection-list"></div>
+      <div id="compareBar" class="compare-bar" hidden><span id="compareSelection">0/4 선택</span><button id="cancelCompare" type="button">취소</button><button id="openCompare" type="button" disabled>비교하기</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="recordDialog" class="record-dialog" aria-labelledby="recordDialogTitle">
+    <form id="recordForm">
+      <header class="collection-head"><div><p class="kicker">SPECIMEN DETAILS</p><h2 id="recordDialogTitle">보유 개체 편집</h2></div><button class="dialog-close" type="button" data-close-dialog="recordDialog" aria-label="편집 닫기">×</button></header>
+      <input id="recordId" type="hidden">
+      <div class="record-grid">
+        <label class="wide"><span>별명</span><input id="recordNickname" type="text" maxlength="40" placeholder="선택 사항"></label>
+        <label><span>폼</span><select id="recordSpecies"></select></label>
+        <label><span>상태</span><select id="recordStatus"><option value="normal">일반</option><option value="shadow">그림자</option><option value="purified">정화됨</option></select></label>
+        <fieldset class="wide record-ivs"><legend>개체값</legend><label><span>공격</span><input id="recordAttack" type="range" min="0" max="15"><output for="recordAttack">0</output></label><label><span>방어</span><input id="recordDefense" type="range" min="0" max="15"><output for="recordDefense">0</output></label><label><span>체력</span><input id="recordStamina" type="range" min="0" max="15"><output for="recordStamina">0</output></label></fieldset>
+        <label class="wide record-level"><span>강화 레벨</span><input id="recordLevel" type="range" min="1" max="50" step="0.5"><output for="recordLevel">1</output></label>
+        <label><span>노말 기술</span><select id="recordFastMove"><option value="">모름</option></select></label>
+        <label><span>차지 기술 1</span><select id="recordChargedMove1"><option value="">모름</option></select></label>
+        <label><span>차지 기술 2</span><select id="recordChargedMove2"><option value="">없음·모름</option></select></label>
+        <label><span>Max 자격</span><select id="recordMaxKind"><option value="none">일반 개체</option><option value="dynamax">다이맥스</option><option value="gigantamax">거다이맥스</option></select></label>
+        <label class="check-field"><input id="recordApex" type="checkbox"> APEX 그림자</label>
+        <label class="check-field"><input id="recordFavorite" type="checkbox"> 즐겨찾기</label>
+        <label class="wide"><span>태그</span><input id="recordTags" type="text" maxlength="300" placeholder="쉼표로 구분: 슈퍼리그, 교환 금지"></label>
+        <label class="wide"><span>메모</span><textarea id="recordNote" maxlength="2000" rows="4" placeholder="투자 계획이나 교환 기록 등을 남겨두세요."></textarea></label>
+      </div>
+      <p id="recordError" class="form-error" role="alert" hidden></p>
+      <div class="record-actions"><button id="deleteRecord" class="danger-button" type="button">삭제</button><button type="button" data-close-dialog="recordDialog">취소</button><button class="primary-button" type="submit">변경 저장</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="compareDialog" class="compare-dialog" aria-labelledby="compareDialogTitle">
+    <div class="compare-shell"><header class="collection-head"><div><p class="kicker">SIDE BY SIDE</p><h2 id="compareDialogTitle">보유 개체 비교</h2><p>종합 승자를 정하지 않고 선택한 용도의 근거를 나란히 표시합니다.</p></div><button class="dialog-close" type="button" data-close-dialog="compareDialog" aria-label="비교 닫기">×</button></header><div class="compare-modes" role="tablist"><button class="active" type="button" role="tab" tabindex="0" aria-selected="true" aria-controls="compareTable" data-compare-mode="great">슈퍼</button><button type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="compareTable" data-compare-mode="ultra">하이퍼</button><button type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="compareTable" data-compare-mode="master">마스터</button><button type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="compareTable" data-compare-mode="pve">레이드</button><button type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="compareTable" data-compare-mode="max">Max</button><button type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="compareTable" data-compare-mode="mega">Mega</button></div><div id="compareTable" class="compare-table-wrap" role="tabpanel" aria-label="선택한 보유 개체 비교 결과"></div></div>
+  </dialog>
+
+  <div id="appToast" class="app-toast" role="status" aria-live="polite" hidden></div>
   <noscript>이 도감은 개체값 계산을 위해 JavaScript가 필요합니다.</noscript>
   <script src="mechanics.js" defer></script>
+  <script src="collection.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

@@ -1,12 +1,13 @@
 const Mechanics = window.ValueDexMechanics;
 if(!Mechanics)throw new Error('개체값 계산 모듈을 불러오지 못했습니다.');
+const Collection = window.ValueDexCollection;
 
 const TYPE_ORDER = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'];
 const TYPE_KO = {normal:'노말',fire:'불꽃',water:'물',electric:'전기',grass:'풀',ice:'얼음',fighting:'격투',poison:'독',ground:'땅',flying:'비행',psychic:'에스퍼',bug:'벌레',rock:'바위',ghost:'고스트',dragon:'드래곤',dark:'악',steel:'강철',fairy:'페어리'};
 const LEAGUES = {great:{name:'슈퍼리그',cap:1500,key:'great'},ultra:{name:'하이퍼리그',cap:2500,key:'ultra'},master:{name:'마스터리그',cap:Infinity,key:'master'}};
 const FORM_LABEL_KO = {normal:'기본',alola:'알로라',galarian:'가라르',hisuian:'히스이',paldea:'팔데아',male:'수컷',female:'암컷',attack:'어택폼',defense:'디펜스폼',speed:'스피드폼',altered:'어나더폼',origin:'오리진폼',incarnate:'화신폼',therian:'영물폼',plant:'초목도롱',sandy:'모래땅도롱',trash:'슈레도롱',meteor:'유성폼',core:'코어폼',ice_rider:'백마 탄 모습'};
 
-const state = {pokemon:[],byKey:new Map(),byDex:new Map(),defaultByDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,maxEligible:false,condition:'normal',purifyTrainerLevel:25,apex:false,training:{capType:'none',silverStat:'attack',target:{attack:10,defense:10,stamina:10},goodBuddy:false,phase:'planned'},ivCache:new Map(),utilityCache:new Map(),dataDate:''};
+const state = {pokemon:[],byKey:new Map(),byDex:new Map(),defaultByDex:new Map(),pvp:null,selected:null,query:'',type:'',generation:'',feature:'',limit:36,mode:'great',ivs:{attack:10,defense:10,stamina:10},level:20,maxEligible:false,maxKind:'none',condition:'normal',purifyTrainerLevel:25,apex:false,training:{capType:'none',silverStat:'attack',target:{attack:10,defense:10,stamina:10},goodBuddy:false,phase:'planned'},ivCache:new Map(),utilityCache:new Map(),dataDate:'',collection:{repo:null,records:[],recovery:[],query:'',status:'',tag:'',sort:'updated',favorite:false,limit:100,compareMode:false,selectedIds:new Set(),compareView:'great',editing:null,error:'',metricCache:new Map()}};
 const $ = (selector, root=document) => root.querySelector(selector);
 const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
 const els = {search:$('#searchInput'),type:$('#typeFilter'),generation:$('#generationFilter'),feature:$('#featureFilter'),list:$('#pokemonList'),count:$('#resultCount'),loadMore:$('#loadMore'),detail:$('#detailPanel')};
@@ -51,6 +52,7 @@ async function init() {
     const route=new URLSearchParams(location.hash.slice(1)).get('pokemon'),key=resolvePokemonKey(route),hasRoute=Boolean(key);
     selectPokemon(key||state.defaultByDex.get(1)?.speciesKey,false);
     if(!hasRoute)document.body.classList.remove('show-detail');
+    await initCollection();
   } catch (error) {
     console.error(error.stack || error);
     els.detail.innerHTML=`<div class="detail-loading"><div class="loader-ball"></div><p>${esc(error.message)}<br>GitHub Pages 또는 로컬 웹 서버에서 다시 열어주세요.</p></div>`;
@@ -82,6 +84,7 @@ function bindGlobalEvents() {
   els.list.addEventListener('click',event=>{const button=event.target.closest('[data-select-key]');if(button)navigateTo(button.dataset.selectKey);});
   els.detail.addEventListener('click',handleDetailClick);
   $('#openGuide').addEventListener('click',()=>$('#guideDialog').showModal());
+  bindCollectionEvents();
   document.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|select|textarea/i.test(document.activeElement.tagName)){event.preventDefault();els.search.focus();}});
   window.addEventListener('hashchange',()=>{const key=resolvePokemonKey(new URLSearchParams(location.hash.slice(1)).get('pokemon'));if(key)selectPokemon(key,false);else document.body.classList.remove('show-detail');});
 }
@@ -116,7 +119,7 @@ function resolvePokemonKey(value) {
 }
 function navigateTo(value) { const key=resolvePokemonKey(value);if(!key)return;const current=new URLSearchParams(location.hash.slice(1)).get('pokemon');if(current===key)selectPokemon(key,false);else location.hash=`pokemon=${encodeURIComponent(key)}`; }
 function resetScenarioState() {
-  state.condition='normal';state.purifyTrainerLevel=25;state.apex=false;state.maxEligible=false;
+  state.condition='normal';state.purifyTrainerLevel=25;state.apex=false;state.maxEligible=false;state.maxKind='none';
   state.training={capType:'none',silverStat:'attack',target:{...state.ivs},goodBuddy:false,phase:'planned'};
 }
 function selectPokemon(value,updateHash=true) {
@@ -205,7 +208,7 @@ function renderDetail() {
       <section class="panel panel-pad"><div class="section-label"><div><h3>기본 능력치와 실전 분류</h3><p>IV를 더하기 전 종족값과 현재 데이터 기준 활용도</p></div><span class="score-pill">${role.name}</span></div><div class="stats-grid">${stat('공격','attack')}${stat('방어','defense')}${stat('체력','stamina')}</div><p class="role-summary">${role.text}</p><div class="utility-summary ${utility.key}"><strong>${esc(utility.label)}</strong><p>${esc(utility.text)}</p>${utility.evolution?`<span>${esc(utility.evolution)}</span>`:''}</div></section>
       <section class="panel panel-pad"><div class="section-label"><div><h3>진화 계보</h3><p>같은 IV와 강화 레벨을 유지해 각각 다시 계산합니다</p></div></div><div class="evolution-chain">${evolutionHtml(p)}</div></section>
       <section class="panel iv-lab">
-        <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력 슬라이더를 움직이면 즉시 다시 계산합니다.</p></div><div class="appraisal"><b id="appraisalStars">–</b><span id="appraisalPercent">–</span></div></div>
+        <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력 슬라이더를 움직이면 즉시 다시 계산합니다.</p></div><div class="iv-head-actions"><button id="quickSave" class="quick-save" type="button">현재 개체 저장</button><div class="appraisal"><b id="appraisalStars">–</b><span id="appraisalPercent">–</span></div></div></div>
         ${statusSelectorHtml(p)}
         <div class="mode-tabs" role="tablist">${modeTab('great','슈퍼리그')}${modeTab('ultra','하이퍼리그')}${modeTab('master','마스터리그')}${modeTab('pve','레이드 PvE')}${modeTab('max','맥스배틀')}</div>
         <div class="iv-content"><div class="slider-panel">
@@ -213,7 +216,7 @@ function renderDetail() {
           <div class="level-row"><p class="level-hint">현재 강화 레벨을 알면 진화 후 즉시 사용 가능 여부도 확인할 수 있어요.</p>${levelSlider()}</div>
           ${purificationOptionsHtml(p)}
           ${trainingPlannerHtml()}
-          <label class="max-toggle" id="maxToggle" hidden><input id="maxEligible" type="checkbox"><span><strong>이 개체는 맥스 포켓몬입니다</strong><span>같은 종이라도 맥스배틀/특별 리서치 출신 개체만 입장할 수 있어요.</span></span></label>
+          <div class="max-toggle" id="maxToggle"${isMaxCapable(p)?'':' hidden'}><label for="maxEligible"><input id="maxEligible" type="checkbox"><span><strong>이 개체는 맥스 포켓몬입니다</strong><span>같은 종이라도 맥스배틀/특별 리서치 출신 개체만 입장할 수 있어요.</span></span></label><select id="maxKindInput" aria-label="맥스 개체 종류"><option value="dynamax">다이맥스</option><option value="gigantamax">거다이맥스</option></select></div>
         </div><div class="result-card" id="ivResult"></div></div>
         <section id="scenarioCompare" class="scenario-compare" hidden aria-live="polite"></section>
         <div class="projection"><h4>같은 IV로 진화하면</h4><div class="projection-grid" id="projectionGrid"></div></div>
@@ -243,7 +246,8 @@ function trainingPlannerHtml() {
 function bindIvEvents() {
   $$('[data-iv]',els.detail).forEach(input=>input.addEventListener('input',()=>{state.ivs[input.dataset.iv]=Number(input.value);$(`#out-${input.dataset.iv}`).value=input.value;syncTrainingTargets();updateIvResults();}));
   $('#levelInput').addEventListener('input',event=>{state.level=Number(event.target.value);$('#levelOutput').value=event.target.value;updateIvResults();});
-  $('#maxEligible').addEventListener('change',event=>{state.maxEligible=event.target.checked;updateIvResults();});
+  $('#maxEligible').addEventListener('change',event=>{state.maxEligible=event.target.checked;if(!state.maxEligible)state.maxKind='none';else if(!recordMaxKindSupported(state.maxKind,state.selected))state.maxKind=state.selected.dynamax?'dynamax':'gigantamax';updateIvResults();});
+  $('#maxKindInput').addEventListener('change',event=>{state.maxKind=event.target.value;state.maxEligible=true;updateIvResults();});
   $('#purifyTrainerLevel').addEventListener('input',event=>{state.purifyTrainerLevel=Math.max(1,Math.min(25,Math.round(Number(event.target.value)||25)));updateIvResults();});
   $('#apexShadow')?.addEventListener('change',event=>{state.apex=event.target.checked;updateIvResults();});
   $('#trainingCap').addEventListener('change',event=>{state.training.capType=event.target.value;if(state.training.capType==='none')state.training.target={...state.ivs};syncTrainingTargets();updateIvResults();});
@@ -257,12 +261,13 @@ function syncTrainingTargets() {
 }
 
 function handleDetailClick(event) {
+  if(event.target.closest('#quickSave')){quickSaveCurrent();return;}
   const select=event.target.closest('[data-select-key]'); if(select){navigateTo(select.dataset.selectKey);return;}
   if(event.target.closest('[data-mobile-back]')){history.replaceState(null,'',`${location.pathname}${location.search}`);document.body.classList.remove('show-detail');return;}
-  const condition=event.target.closest('[data-condition]');if(condition&&!condition.disabled){state.condition=condition.dataset.condition;state.apex=false;if(state.condition==='shadow'){state.maxEligible=false;state.training.capType='none';state.training.target={...state.ivs};}updateIvResults();return;}
+  const condition=event.target.closest('[data-condition]');if(condition&&!condition.disabled){state.condition=condition.dataset.condition;state.apex=false;if(state.condition==='shadow'){state.maxEligible=false;state.maxKind='none';state.training.capType='none';state.training.target={...state.ivs};}updateIvResults();return;}
   const phase=event.target.closest('[data-training-phase]');if(phase){state.training.phase=phase.dataset.trainingPhase;updateIvResults();return;}
   const silver=event.target.closest('[data-silver-stat]');if(silver){state.training.silverStat=silver.dataset.silverStat;syncTrainingTargets();updateIvResults();return;}
-  const mode=event.target.closest('[data-mode]'); if(mode){state.mode=mode.dataset.mode;$$('[data-mode]',els.detail).forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});$('#maxToggle').hidden=state.mode!=='max';updateIvResults();}
+  const mode=event.target.closest('[data-mode]'); if(mode){state.mode=mode.dataset.mode;$$('[data-mode]',els.detail).forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});updateIvResults();}
 }
 
 function statsAt(pokemon,ivs,level) { return Mechanics.statsAt(pokemon,ivs,level); }
@@ -282,11 +287,16 @@ function ivRankData(pokemon,cap) {
   state.ivCache.set(key,value); return value;
 }
 
-function makeSnapshot(overrides={}) { return{ivs:{...state.ivs,...(overrides.ivs||{})},level:overrides.level??state.level,status:overrides.status??state.condition,maxEligible:overrides.maxEligible??state.maxEligible}; }
+function makeSnapshot(overrides={}) { return{ivs:{...state.ivs,...(overrides.ivs||{})},level:overrides.level??state.level,status:overrides.status??state.condition,maxEligible:overrides.maxEligible??state.maxEligible,maxKind:overrides.maxKind??state.maxKind}; }
+function effectiveStateSnapshot() {
+  if(state.training.capType==='none'||state.training.phase!=='completed')return makeSnapshot();
+  const plan=Mechanics.buildTrainingPlan({ivs:state.ivs,target:state.training.target,status:state.condition,capType:state.training.capType,silverStat:state.training.silverStat,goodBuddy:state.training.goodBuddy,phase:state.training.phase});
+  return plan.valid?makeSnapshot({ivs:plan.targetIvs}):makeSnapshot();
+}
 function gradeClass(grade) { return grade==='S'?'':grade.toLowerCase(); }
 
 function evaluate(pokemon,mode=state.mode,snapshot=makeSnapshot()) {
-  const {ivs,level,status,maxEligible}=snapshot,app=Mechanics.appraisalFor(ivs),current=Mechanics.applyStatusModifiers(statsAt(pokemon,ivs,level),status),perfect=Mechanics.applyStatusModifiers(statsAt(pokemon,{attack:15,defense:15,stamina:15},level),status),statusPrefix=status==='shadow'?'그림자 ':status==='purified'?'정화 ':'';
+  const {ivs,level,status,maxEligible}=snapshot,maxKind=snapshot.maxKind||(maxEligible?(pokemon.dynamax?'dynamax':'gigantamax'):'none'),app=Mechanics.appraisalFor(ivs),current=Mechanics.applyStatusModifiers(statsAt(pokemon,ivs,level),status),perfect=Mechanics.applyStatusModifiers(statsAt(pokemon,{attack:15,defense:15,stamina:15},level),status),statusPrefix=status==='shadow'?'그림자 ':status==='purified'?'정화 ':'';
   if(LEAGUES[mode]){
     const league=LEAGUES[mode],rank=ivRankData(pokemon,league.cap).byIv.get(`${ivs.attack}-${ivs.defense}-${ivs.stamina}`);
     const grade=rank.rank<=41?'S':rank.rank<=410?'A':rank.rank<=1229?'B':'C'; const top=rank.rank/4096*100;
@@ -309,8 +319,9 @@ function evaluate(pokemon,mode=state.mode,snapshot=makeSnapshot()) {
   if(status==='shadow')return{grade:'–',title:'그림자 포켓몬은 맥스배틀 사용 불가',subtitle:'정화 미리보기에서 정화 후 가치를 확인하세요',metrics:[['공격 IV',`${ivs.attack}/15`],['방어 IV',`${ivs.defense}/15`],['체력 IV',`${ivs.stamina}/15`]],explanation:'그림자 포켓몬은 다이맥스·거다이맥스 개체가 될 수 없으며 맥스배틀에 참가할 수 없습니다.',caution:'그림자 보정과 맥스 변신을 동시에 적용하지 않습니다.'};
   if(!isMaxCapable(pokemon))return{grade:'–',title:'현재 맥스 미지원 종',subtitle:'확인된 Pokémon GO 맥스 개체 목록 기준',metrics:[['공격 IV',`${ivs.attack}/15`],['방어 IV',`${ivs.defense}/15`],['체력 IV',`${ivs.stamina}/15`]],explanation:'이 종은 현재 데이터에서 다이맥스 또는 거다이맥스 가능한 개체가 확인되지 않았습니다. 향후 맥스배틀 데뷔 시 다시 평가할 수 있습니다.',caution:'본가에서 맥스 변신이 가능한지와 Pokémon GO에서 실제 맥스 개체를 얻을 수 있는지는 다릅니다.'};
   if(!maxEligible)return{grade:'?',title:'맥스 개체 여부를 확인하세요',subtitle:'종이 지원돼도 일반 개체는 입장할 수 없습니다',metrics:[['종 지원','가능'],['거다이맥스',pokemon.gigantamax?'가능':'해당 없음'],['현재 예상 CP',current.cp.toLocaleString()]],explanation:'슬라이더 아래의 “이 개체는 맥스 포켓몬입니다”를 체크해야 맥스 역할별 IV 평가를 진행합니다.',caution:'맥스배틀이나 특별 리서치에서 얻은 맥스 자격은 개체 단위입니다. 같은 종의 일반 포켓몬에는 자동 적용되지 않습니다.'};
+  if(!recordMaxKindSupported(maxKind,pokemon))return{grade:'–',title:`저장된 ${maxKindLabel(maxKind)} 자격은 현재 폼과 불일치`,subtitle:'현재 Max 지원 데이터와 저장 기록을 함께 확인하세요',metrics:[['저장 종류',maxKindLabel(maxKind)],['다이맥스',pokemon.dynamax?'지원':'미지원'],['거다이맥스',pokemon.gigantamax?'지원':'미지원']],explanation:'가져온 기록의 Max 종류는 데이터 손실을 막기 위해 보존했지만 현재 도감에서는 이 폼의 해당 자격이 확인되지 않습니다.',caution:'잘못 연결된 폼인지, 이후 데이터에서 제외된 자격인지 게임 내 개체와 출처를 다시 확인하세요.'};
   const grade=score>=95?'S':score>=85?'A':score>=70?'B':'C',roleName=role.key==='attack'?'맥스 공격수':role.key==='stamina'?'맥스 힐러·탱커':'맥스 탱커';
-  return{grade,title:`${statusPrefix}${roleName} ${grade}급`,subtitle:`역할 가중 IV 점수 ${score.toFixed(1)}점`,metrics:[['공격 IV',`${ivs.attack}/15`],['내구 IV',`${ivs.defense+ivs.stamina}/30`],['거다이맥스',pokemon.gigantamax?'가능':'–']],explanation:role.key==='attack'?'공격 IV와 보스 약점을 찌르는 노말 기술 타입이 핵심입니다. 맥스 어택 레벨을 올리면 IV 차이보다 큰 화력 차이가 납니다.':'방어·체력과 보스 기술 저항을 우선하세요. 맥스가드로 버티거나 맥스스피릿으로 팀을 회복시키는 역할에 적합합니다.',caution:'다이맥스 어택 타입은 현재 노말 기술 타입으로 결정됩니다. 거다이맥스는 종 고유 G-Max 기술을 사용하며, 메가진화와 맥스 변신은 동시에 사용할 수 없습니다.'};
+  return{grade,title:`${statusPrefix}${roleName} ${grade}급`,subtitle:`${maxKindLabel(maxKind)} · 역할 가중 IV 점수 ${score.toFixed(1)}점`,metrics:[['공격 IV',`${ivs.attack}/15`],['내구 IV',`${ivs.defense+ivs.stamina}/30`],['Max 종류',maxKindLabel(maxKind)]],explanation:role.key==='attack'?`공격 IV와 보스 약점을 찌르는 노말 기술 타입이 핵심입니다. ${maxKind==='gigantamax'?'선택한 거다이맥스는 종 고유 G-Max 기술을 사용합니다.':'다이맥스 어택 타입은 현재 노말 기술 타입으로 결정됩니다.'} 맥스 기술 레벨을 올리면 IV 차이보다 큰 화력 차이가 납니다.`:'방어·체력과 보스 기술 저항을 우선하세요. 맥스가드로 버티거나 맥스스피릿으로 팀을 회복시키는 역할에 적합합니다.',caution:'메가진화와 맥스 변신은 동시에 사용할 수 없습니다. 실제 맥스 기술 레벨과 보스 기술을 함께 확인하세요.'};
 }
 
 const MOVE_LABEL_KO={FRUSTRATION:'화풀이',RETURN:'은혜갚기',AEROBLAST_PLUS:'에어로블라스트+',AEROBLAST_PLUS_PLUS:'에어로블라스트++',SACRED_FIRE_PLUS:'성스러운불꽃+',SACRED_FIRE_PLUS_PLUS:'성스러운불꽃++'};
@@ -350,10 +361,12 @@ function updateScenarioControls(pokemon) {
   const active=!shadow&&state.training.capType!=='none';
   $$('[data-training-iv]',els.detail).forEach(input=>{const key=input.dataset.trainingIv;input.min=state.ivs[key];input.value=state.training.target[key];input.disabled=!active||(state.training.capType==='silver'&&key!==state.training.silverStat);$(`#training-out-${key}`).value=state.training.target[key];});
   $$('[data-training-phase]',els.detail).forEach(button=>{const selected=button.dataset.trainingPhase===state.training.phase;button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));button.disabled=shadow||state.training.capType==='none';});
-  const maxToggle=$('#maxToggle'),checkbox=$('#maxEligible');maxToggle.hidden=state.mode!=='max';checkbox.disabled=shadow||!isMaxCapable(pokemon);checkbox.checked=!shadow&&state.maxEligible&&isMaxCapable(pokemon);maxToggle.classList.toggle('unavailable',shadow);
+  const maxToggle=$('#maxToggle'),checkbox=$('#maxEligible'),kindSelect=$('#maxKindInput'),capable=isMaxCapable(pokemon);maxToggle.hidden=!capable;checkbox.disabled=shadow||!capable;checkbox.checked=!shadow&&state.maxEligible&&capable;maxToggle.classList.toggle('unavailable',shadow);
+  kindSelect.querySelector('[value="dynamax"]').disabled=!pokemon.dynamax;kindSelect.querySelector('[value="gigantamax"]').disabled=!pokemon.gigantamax;
+  kindSelect.value=state.maxKind==='none'?(pokemon.dynamax?'dynamax':'gigantamax'):state.maxKind;kindSelect.hidden=!checkbox.checked||(!(pokemon.dynamax&&pokemon.gigantamax)&&recordMaxKindSupported(state.maxKind,pokemon));kindSelect.disabled=shadow;
 }
 function updateIvResults() {
-  const p=state.selected,snapshot=makeSnapshot(),result=evaluate(p,state.mode,snapshot),app=Mechanics.appraisalFor(snapshot.ivs);syncTrainingTargets();updateScenarioControls(p);
+  syncTrainingTargets();const p=state.selected,snapshot=effectiveStateSnapshot(),result=evaluate(p,state.mode,snapshot),app=Mechanics.appraisalFor(snapshot.ivs);updateScenarioControls(p);
   $('#appraisalStars').textContent=app.stars; $('#appraisalPercent').textContent=`${app.total}/45 · ${app.percent.toFixed(1)}%`;
   $('#ivResult').innerHTML=`<div class="grade-row"><span class="grade ${gradeClass(result.grade)}">${result.grade}</span><div><h4>${esc(result.title)}</h4><p>${esc(result.subtitle)}</p></div></div><div class="result-metrics">${result.metrics.map(([label,value])=>`<div class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><p class="explanation">${esc(result.explanation)}</p><p class="caution">${esc(result.caution)}</p>`;
   renderScenarioCompare(p);
@@ -404,6 +417,361 @@ function transformationHtml(pokemon,status='normal') {
   if(pokemon.mega.length)cards.push('<article class="transform-card mega"><h4>2026 메가 운용 메모</h4><p>메가진화는 일반 진화가 아닌 일시적 전투 형태입니다. 일부 대상은 슈퍼 맥스 레벨과 메가 중 추가 차지 공격을 지원하므로 게임 내 자격을 확인하세요. 일반 GO 배틀리그 사용 가능 여부는 시즌 규칙을 따릅니다.</p></article>');
   if(isMaxCapable(pokemon)){const fastTypes=[...new Map(pokemon.moves.fast.map(move=>[move.type,move])).values()].map(move=>move.typeKo).join(' · '),maxLabel=pokemon.gigantamax?(pokemon.dynamax?'다이맥스 · 거다이맥스':'거다이맥스'):'다이맥스',role=archetype(pokemon);cards.push(`<article class="transform-card max"><h4>${maxLabel} 운용</h4><span class="score-pill">${role.name}</span><div class="transform-stat"><span>맥스 어택</span><span>맥스가드</span><span>맥스스피릿</span></div><p>노말 기술 선택에 따라 다이맥스 어택 타입을 ${esc(fastTypes||'현재 기술 타입')} 중에서 바꿀 수 있습니다. ${pokemon.gigantamax?'거다이맥스 시에는 종 고유 G-Max 기술이 맥스 어택을 대신합니다. ':''}맥스 기술 레벨·보스 저항·강화 레벨이 IV보다 더 큰 영향을 줄 수 있습니다.</p></article>`);}else cards.push('<div class="empty-transform">현재 데이터에서 이 종의 맥스 개체는 확인되지 않았습니다. 일반 개체는 향후 종이 데뷔해도 자동으로 맥스 자격을 얻지 않습니다.</div>');
   return cards.join('');
+}
+
+let toastTimer=0;
+const toastActions=new Map();
+
+async function initCollection() {
+  if(!Collection||!window.indexedDB){setCollectionError('이 브라우저에서는 IndexedDB 보유함을 사용할 수 없습니다. 도감과 IV 계산은 계속 사용할 수 있습니다.');return;}
+  try {
+    state.collection.repo=await Collection.open();
+    await refreshCollection();
+  } catch(error) {
+    console.error(error);
+    setCollectionError(`보유함을 열지 못했습니다. ${error.message||'브라우저 저장 공간 설정을 확인해 주세요.'}`);
+  }
+}
+
+function setCollectionError(message) {
+  state.collection.error=message;
+  const button=$('#openCollection');if(button)button.setAttribute('aria-describedby','collectionStorageError');
+  renderCollection();
+}
+
+async function refreshCollection() {
+  if(!state.collection.repo)return;
+  [state.collection.records,state.collection.recovery]=await Promise.all([state.collection.repo.list(),state.collection.repo.listRecovery()]);
+  const currentIds=new Set(state.collection.records.map(record=>record.id));
+  for(const id of state.collection.selectedIds)if(!currentIds.has(id))state.collection.selectedIds.delete(id);
+  state.collection.metricCache.clear();
+  const count=state.collection.records.length,counter=$('#collectionCount');
+  counter.textContent=String(count);counter.setAttribute('aria-label',`저장한 포켓몬 ${count}마리`);
+  renderCollection();
+}
+
+async function refreshAfterCommit(actionLabel) {
+  try{await refreshCollection();return true;}catch(error){console.error(error);showToast(`${actionLabel}은(는) 저장소에 반영됐지만 화면을 갱신하지 못했습니다. 페이지를 새로고침해 확인하세요.`);return false;}
+}
+
+function bindCollectionEvents() {
+  $('#openCollection').addEventListener('click',async()=>{renderCollection();const dialog=$('#collectionDialog');if(!dialog.open)dialog.showModal();if(state.collection.repo)try{await refreshCollection();}catch(error){console.error(error);showToast('다른 탭의 최신 보유함을 불러오지 못했습니다. 페이지를 새로고침해 확인하세요.');}});
+  $$('[data-close-dialog]').forEach(button=>button.addEventListener('click',()=>document.getElementById(button.dataset.closeDialog)?.close()));
+  $('#collectionSearch').addEventListener('input',event=>{state.collection.query=event.target.value;state.collection.limit=100;renderCollection();});
+  $('#collectionStatus').addEventListener('change',event=>{state.collection.status=event.target.value;state.collection.limit=100;renderCollection();});
+  $('#collectionTag').addEventListener('change',event=>{state.collection.tag=event.target.value;state.collection.limit=100;renderCollection();});
+  $('#collectionSort').addEventListener('change',event=>{state.collection.sort=event.target.value;state.collection.limit=100;renderCollection();});
+  $('#collectionFavorite').addEventListener('change',event=>{state.collection.favorite=event.target.checked;state.collection.limit=100;renderCollection();});
+  $('#collectionList').addEventListener('click',handleCollectionClick);
+  $('#toggleCompare').addEventListener('click',()=>setCompareMode(!state.collection.compareMode));
+  $('#cancelCompare').addEventListener('click',()=>setCompareMode(false));
+  $('#openCompare').addEventListener('click',openComparison);
+  $('#exportCollectionJson').addEventListener('click',()=>exportCollection('json'));
+  $('#exportCollectionCsv').addEventListener('click',()=>exportCollection('csv'));
+  $('#exportCollectionRecovery').addEventListener('click',exportCollectionRecovery);
+  $('#importCollection').addEventListener('click',()=>$('#collectionFile').click());
+  $('#collectionFile').addEventListener('change',importCollectionFile);
+  $('#clearCollection').addEventListener('click',clearCollection);
+  $('#recordForm').addEventListener('submit',saveRecordEdits);
+  $('#deleteRecord').addEventListener('click',deleteEditingRecord);
+  $('#recordSpecies').addEventListener('change',()=>refreshRecordFormOptions());
+  $('#recordStatus').addEventListener('change',()=>refreshRecordFormEligibility());
+  for(const id of ['recordAttack','recordDefense','recordStamina','recordLevel'])$('#'+id).addEventListener('input',event=>{event.target.nextElementSibling.value=event.target.value;});
+  $('.compare-modes').addEventListener('click',event=>{const button=event.target.closest('[data-compare-mode]');if(!button)return;state.collection.compareView=button.dataset.compareMode;$$('[data-compare-mode]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;});renderComparison();});
+  $('.compare-modes').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=$$('[data-compare-mode]'),current=Math.max(0,tabs.indexOf(document.activeElement));let next=event.key==='Home'?0:event.key==='End'?tabs.length-1:event.key==='ArrowRight'?(current+1)%tabs.length:(current-1+tabs.length)%tabs.length;event.preventDefault();tabs[next].focus();tabs[next].click();});
+  $('#appToast').addEventListener('click',event=>{const button=event.target.closest('[data-toast-action]');if(!button)return;const action=toastActions.get(button.dataset.toastAction);if(action)action();});
+}
+
+function showToast(message,actions=[]) {
+  const toast=$('#appToast');clearTimeout(toastTimer);toastActions.clear();
+  toast.innerHTML=`<span>${esc(message)}</span>${actions.map((action,index)=>{const key=String(index);toastActions.set(key,action.run);return`<button type="button" data-toast-action="${key}">${esc(action.label)}</button>`;}).join('')}`;
+  toast.hidden=false;
+  const hide=()=>{if(toast.matches(':focus-within')){toastTimer=setTimeout(hide,1000);return;}toast.hidden=true;toastActions.clear();};
+  toastTimer=setTimeout(hide,7000);
+}
+
+async function refreshStaleRecord(error) {
+  if(['REVISION_CONFLICT','RECORD_NOT_FOUND'].includes(error?.code))await refreshAfterCommit('최신 기록 확인');
+}
+
+function currentHyperTrainingRecord() {
+  if(state.training.capType==='none')return null;
+  if(state.condition==='shadow'||!['attack','defense','stamina'].some(key=>state.training.target[key]>state.ivs[key]))return null;
+  return{phase:state.training.phase,capType:state.training.capType,silverStat:state.training.capType==='silver'?state.training.silverStat:null,targetIvs:{...state.training.target},goodBuddy:state.training.goodBuddy};
+}
+
+async function quickSaveCurrent() {
+  const button=$('#quickSave');
+  if(!state.collection.repo){showToast(state.collection.error||'보유함 저장소를 아직 준비하지 못했습니다.');return;}
+  button.disabled=true;
+  try {
+    const maxKind=state.maxEligible&&recordMaxKindSupported(state.maxKind,state.selected)?state.maxKind:'none';
+    const record=Collection.createRecordFromState(state.selected,{condition:state.condition,ivs:{...state.ivs},level:state.level,apex:state.apex,training:state.training},{maxKind,hyperTraining:currentHyperTrainingRecord()});
+    const saved=await state.collection.repo.add(record);if(!await refreshAfterCommit('현재 개체 저장'))return;
+    showToast(`${displayName(state.selected)} ${state.ivs.attack}/${state.ivs.defense}/${state.ivs.stamina}을(를) 보유함에 저장했습니다.`,[
+      {label:'상세 입력',run:()=>openRecordEditor(saved.id)},
+      {label:'실행 취소',run:async()=>{try{await state.collection.repo.remove(saved.id,{expectedRevision:saved.revision});if(await refreshAfterCommit('실행 취소'))showToast('방금 저장한 개체를 삭제했습니다.');}catch(error){await refreshStaleRecord(error);showToast(error.message);}}}
+    ]);
+  } catch(error) {
+    console.error(error);showToast(`저장하지 못했습니다. ${error.message}`);
+  } finally {button.disabled=false;}
+}
+
+function recordPokemon(record) { return state.byKey.get(record.speciesKey); }
+function statusLabel(status) { return({normal:'일반',shadow:'그림자',purified:'정화됨'})[status]||status; }
+function maxKindLabel(kind) { return({none:'일반 개체',dynamax:'다이맥스',gigantamax:'거다이맥스'})[kind]||kind; }
+function recordMaxKindSupported(kind,pokemon) { return kind==='dynamax'?pokemon?.dynamax===true:kind==='gigantamax'?pokemon?.gigantamax===true:false; }
+function recordMaxSupported(record,pokemon) { return recordMaxKindSupported(record.max.kind,pokemon); }
+function effectiveSnapshot(record) { return Collection.recordToSnapshot(record,{training:'effective'}); }
+function recordPveProfile(record,pokemon,stabTypes=pokemon.types.map(type=>type.id)) {
+  const fast=record.moves.fast?moveForPokemon(pokemon,record.moves.fast,'fast'):null,charged=record.moves.charged.map(id=>moveForPokemon(pokemon,id,'charged')).filter(Boolean);
+  if(fast&&charged.length){const profile=pveProfile({...pokemon,moves:{fast:[fast],charged}},stabTypes);if(profile.raw)return{profile,usesStored:true};}
+  return{profile:pveProfile(pokemon,stabTypes),usesStored:false};
+}
+function recordMaxAttackText(record,pokemon) {
+  if(record.max.kind==='gigantamax')return'종 고유 G-Max 기술';
+  const fast=record.moves.fast?moveForPokemon(pokemon,record.moves.fast,'fast'):null;return fast?`${fast.typeKo||TYPE_KO[fast.type]||fast.type} · ${moveName(fast.id,fast)}`:'노말 기술 미입력';
+}
+
+function recordMetric(record,mode=state.collection.sort) {
+  const cacheKey=`${record.id}:${record.revision}:${mode}`;
+  if(state.collection.metricCache.has(cacheKey))return state.collection.metricCache.get(cacheKey);
+  const pokemon=recordPokemon(record),snapshot=effectiveSnapshot(record);
+  let value={primary:['dex','great','ultra','master'].includes(mode)?Infinity:-Infinity,secondary:Infinity,text:'계산 불가'};
+  if(mode==='updated')value={primary:Date.parse(record.updatedAt)||0,secondary:0,text:`수정 ${String(record.updatedAt).slice(0,10)}`};
+  else if(mode==='ivTotal'){const total=snapshot.ivs.attack+snapshot.ivs.defense+snapshot.ivs.stamina;value={primary:total,secondary:0,text:`IV ${total}/45${record.hyperTraining?.phase==='completed'?' · 특훈 완료':''}`};}
+  else if(!pokemon){state.collection.metricCache.set(cacheKey,value);return value;}
+  else if(mode==='dex')value={primary:pokemon.dex,secondary:pokemon.formSlug==='normal'?0:1,text:`${padDex(pokemon.dex)} · ${formLabel(pokemon)}`};
+  else if(LEAGUES[mode]){
+    const league=LEAGUES[mode],result=evaluate(pokemon,mode,snapshot),meta=snapshot.status==='shadow'?null:state.pvp.leagues[mode]?.[pokemon.speciesKey],currentCp=statsAt(pokemon,snapshot.ivs,snapshot.level).cp,tooHigh=league.cap!==Infinity&&currentCp>league.cap,metaMissing=snapshot.status==='shadow'?'그림자형 자료 없음':'자료 없음';
+    value={primary:(tooHigh?1000000:0)+(meta?Number(meta.rank):999999),secondary:result.rank?.rank??999999,text:`종 메타 ${meta?`#${meta.rank}`:metaMissing} · IV ${result.rank?`#${result.rank.rank.toLocaleString()}`:'–'}${tooHigh?` · 현재 CP ${currentCp.toLocaleString()} 초과`:''}`};
+  } else if(mode==='pve'){
+    const stats=Mechanics.applyStatusModifiers(statsAt(pokemon,snapshot.ivs,snapshot.level),snapshot.status),{profile,usesStored}=recordPveProfile(record,pokemon),index=stats.attack*(profile.coherent?.score||profile.raw?.score||0);
+    value={primary:index,secondary:0,text:`${usesStored?'보유 기술':'추천 기술 잠재'} 화력 ${index.toFixed(0)}`};
+  } else if(mode==='max'){
+    const role=archetype(pokemon),weights=role.key==='attack'?[.5,.25,.25]:role.key==='stamina'?[.25,.3,.45]:[.3,.4,.3],eligible=recordMaxSupported(record,pokemon)&&record.status!=='shadow',score=eligible?(snapshot.ivs.attack*weights[0]+snapshot.ivs.defense*weights[1]+snapshot.ivs.stamina*weights[2])/15*100:-1;
+    value={primary:score,secondary:0,text:eligible?`${role.name} ${score.toFixed(1)}점 · ${recordMaxAttackText(record,pokemon)}`:'Max 자격 없음'};
+  } else if(mode==='mega'){
+    const eligible=record.status!=='shadow'&&pokemon.mega.length>0;
+    const scores=eligible?pokemon.mega.map(mega=>{const megaPokemon={...pokemon,stats:mega.stats},stats=statsAt(megaPokemon,snapshot.ivs,snapshot.level),{profile,usesStored}=recordPveProfile(record,pokemon,mega.types.map(type=>type.id));return{name:mega.name,score:stats.attack*(profile.coherent?.score||profile.raw?.score||0),usesStored};}):[];
+    const best=scores.sort((a,b)=>b.score-a.score)[0];value={primary:best?.score??-1,secondary:0,text:best?`${best.usesStored?'보유 기술':'추천 기술 잠재'} ${best.name} ${best.score.toFixed(0)}`:'Mega 운용 불가'};
+  }
+  state.collection.metricCache.set(cacheKey,value);return value;
+}
+
+function pvpSortBase(record,mode) {
+  const cacheKey=`${record.id}:${record.revision}:${mode}:sort-base`;
+  if(state.collection.metricCache.has(cacheKey))return state.collection.metricCache.get(cacheKey);
+  const pokemon=recordPokemon(record);if(!pokemon){const missing={bucket:3,metaRank:Infinity,dex:Infinity,speciesKey:record.speciesKey};state.collection.metricCache.set(cacheKey,missing);return missing;}
+  const snapshot=effectiveSnapshot(record),league=LEAGUES[mode],currentCp=statsAt(pokemon,snapshot.ivs,snapshot.level).cp,tooHigh=league.cap!==Infinity&&currentCp>league.cap,meta=snapshot.status==='shadow'?null:state.pvp.leagues[mode]?.[pokemon.speciesKey],value={bucket:tooHigh?2:meta?0:1,metaRank:meta?Number(meta.rank):Infinity,dex:pokemon.dex,speciesKey:pokemon.speciesKey};state.collection.metricCache.set(cacheKey,value);return value;
+}
+
+function compareRecordsForSort(a,b) {
+  if(a.favorite!==b.favorite)return Number(b.favorite)-Number(a.favorite);
+  const mode=state.collection.sort;
+  if(LEAGUES[mode]){
+    const ab=pvpSortBase(a,mode),bb=pvpSortBase(b,mode),baseOrder=ab.bucket-bb.bucket||ab.metaRank-bb.metaRank;
+    if(baseOrder)return baseOrder;
+    if(!Number.isFinite(ab.metaRank)&&ab.speciesKey!==bb.speciesKey)return ab.dex-bb.dex||ab.speciesKey.localeCompare(bb.speciesKey);
+    const am=recordMetric(a,mode),bm=recordMetric(b,mode);return am.secondary-bm.secondary||ab.dex-bb.dex||String(a.id).localeCompare(String(b.id));
+  }
+  const am=recordMetric(a,mode),bm=recordMetric(b,mode);
+  if(mode==='dex')return am.primary-bm.primary||am.secondary-bm.secondary||String(a.id).localeCompare(String(b.id));
+  return bm.primary-am.primary||am.secondary-bm.secondary||String(a.id).localeCompare(String(b.id));
+}
+
+function filteredCollectionRecords() {
+  const query=normalize(state.collection.query);
+  return state.collection.records.filter(record=>{
+    const pokemon=recordPokemon(record),haystack=[pokemon?displayName(pokemon):record.speciesKey,record.nickname,record.note,...record.tags].join(' ');
+    return(!query||normalize(haystack).includes(query))&&(!state.collection.status||record.status===state.collection.status)&&(!state.collection.tag||record.tags.includes(state.collection.tag))&&(!state.collection.favorite||record.favorite);
+  }).sort(compareRecordsForSort);
+}
+
+function renderCollection() {
+  const list=$('#collectionList');if(!list)return;
+  const total=state.collection.records.length;
+  if(state.collection.error){list.innerHTML=`<div id="collectionStorageError" class="storage-error">${esc(state.collection.error)}</div>`;$('#collectionSummary').textContent='보유함을 사용할 수 없습니다.';return;}
+  const recovery=$('#collectionRecoveryWarning'),recoveryCount=state.collection.recovery.length;recovery.hidden=!recoveryCount;$('#collectionRecoveryCount').textContent=String(recoveryCount);
+  const tags=[...new Set(state.collection.records.flatMap(record=>record.tags))].sort((a,b)=>a.localeCompare(b,'ko')),tagSelect=$('#collectionTag'),selectedTag=state.collection.tag;
+  tagSelect.innerHTML='<option value="">모든 태그</option>'+tags.map(tag=>`<option value="${esc(tag)}">${esc(tag)}</option>`).join('');tagSelect.value=tags.includes(selectedTag)?selectedTag:'';if(tagSelect.value!==selectedTag)state.collection.tag='';
+  const records=filteredCollectionRecords(),visible=records.slice(0,state.collection.limit),recoveryText=recoveryCount?` · 복구 원본 ${recoveryCount.toLocaleString()}건`:'';$('#collectionSummary').textContent=(records.length===total?`${total.toLocaleString()}마리 저장됨`:`${total.toLocaleString()}마리 중 ${records.length.toLocaleString()}마리 표시`)+recoveryText;
+  $('#collectionSearch').value=state.collection.query;$('#collectionStatus').value=state.collection.status;$('#collectionSort').value=state.collection.sort;$('#collectionFavorite').checked=state.collection.favorite;
+  $('#toggleCompare').classList.toggle('active',state.collection.compareMode);$('#toggleCompare').textContent=state.collection.compareMode?'비교 선택 중':'비교 선택';
+  list.innerHTML=records.length?visible.map(collectionCardHtml).join('')+(visible.length<records.length?`<button class="collection-load-more" type="button" data-collection-more>더 보기 · ${visible.length.toLocaleString()}/${records.length.toLocaleString()}</button>`:''):`<div class="collection-empty"><strong>${total?'필터에 맞는 개체가 없습니다.':'아직 저장한 포켓몬이 없습니다.'}</strong><span>${total?'검색어나 필터를 바꿔보세요.':'도감에서 IV와 상태를 입력한 뒤 “현재 개체 저장”을 누르세요.'}</span></div>`;
+  updateCompareBar();
+}
+
+function collectionCardHtml(record) {
+  const pokemon=recordPokemon(record),snapshot=effectiveSnapshot(record),selected=state.collection.selectedIds.has(record.id),metric=recordMetric(record),name=record.nickname|| (pokemon?displayName(pokemon):record.speciesKey),baseName=record.nickname&&pokemon?displayName(pokemon):'',image=pokemon?.image||'',maxText=record.max.kind==='none'?'':` · ${maxKindLabel(record.max.kind)}`,trainingText=record.hyperTraining?.phase==='completed'?' · 특훈 완료':'';
+  const actions=state.collection.compareMode?`<button class="compare-check" type="button" data-record-compare="${esc(record.id)}" aria-pressed="${selected}">${selected?'선택됨':'선택'}</button>`:`<div class="collection-card-actions"><button class="favorite-button ${record.favorite?'active':''}" type="button" data-record-favorite="${esc(record.id)}" aria-label="${record.favorite?'즐겨찾기 해제':'즐겨찾기'}">${record.favorite?'★':'☆'}</button><button type="button" data-record-edit="${esc(record.id)}">편집</button><button type="button" data-record-open="${esc(record.id)}">도감</button></div>`;
+  return `<article class="collection-card ${selected?'selected':''}" data-record-id="${esc(record.id)}"><img src="${esc(image)}" alt=""><div class="collection-card-copy"><h3>${esc(name)}${baseName?`<span>${esc(baseName)}</span>`:''}</h3><p>${pokemon?`${padDex(pokemon.dex)} · `:''}${esc(statusLabel(record.status))} · IV ${snapshot.ivs.attack}/${snapshot.ivs.defense}/${snapshot.ivs.stamina} · Lv.${record.level}${esc(trainingText+maxText)}</p><p class="collection-card-metric">${esc(metric.text)}</p>${record.tags.length?`<div class="collection-tags">${record.tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}${pokemon?'':`<p class="form-error">현재 도감에 없는 폼을 백업 보존 중입니다.</p>`}</div>${actions}</article>`;
+}
+
+function setCompareMode(enabled) {
+  state.collection.compareMode=enabled;if(!enabled)state.collection.selectedIds.clear();renderCollection();
+}
+
+function updateCompareBar() {
+  const count=state.collection.selectedIds.size,bar=$('#compareBar');bar.hidden=!state.collection.compareMode;$('#compareSelection').textContent=`${count}/4 선택`;$('#openCompare').disabled=count<2||count>4;
+}
+
+async function handleCollectionClick(event) {
+  if(event.target.closest('[data-collection-more]')){state.collection.limit+=100;renderCollection();return;}
+  const favorite=event.target.closest('[data-record-favorite]');
+  if(favorite){const record=state.collection.records.find(item=>item.id===favorite.dataset.recordFavorite);if(!record)return;try{await state.collection.repo.update(record.id,{favorite:!record.favorite},{expectedRevision:record.revision});await refreshAfterCommit('즐겨찾기 변경');}catch(error){await refreshStaleRecord(error);showToast(error.message);}return;}
+  const edit=event.target.closest('[data-record-edit]');if(edit){openRecordEditor(edit.dataset.recordEdit);return;}
+  const open=event.target.closest('[data-record-open]');if(open){loadRecordIntoDetail(open.dataset.recordOpen);return;}
+  const compare=event.target.closest('[data-record-compare]');if(compare){const id=compare.dataset.recordCompare;if(state.collection.selectedIds.has(id))state.collection.selectedIds.delete(id);else if(state.collection.selectedIds.size<4)state.collection.selectedIds.add(id);else{showToast('한 번에 최대 4마리까지 비교할 수 있습니다.');return;}renderCollection();}
+}
+
+function optionHtml(value,label,selected=false) { return `<option value="${esc(value)}"${selected?' selected':''}>${esc(label)}</option>`; }
+
+function openRecordEditor(id) {
+  const record=state.collection.records.find(item=>item.id===id);if(!record)return;
+  state.collection.editing=structuredClone(record);$('#recordId').value=record.id;$('#recordNickname').value=record.nickname||'';
+  const pokemon=recordPokemon(record),forms=pokemon?(state.byDex.get(pokemon.dex)||[pokemon]):[];
+  $('#recordSpecies').innerHTML=forms.length?forms.map(form=>optionHtml(form.speciesKey,displayName(form),form.speciesKey===record.speciesKey)).join(''):optionHtml(record.speciesKey,`${record.speciesKey} (현재 도감에 없음)`,true);
+  $('#recordStatus').value=record.status;
+  for(const [key,idName] of [['attack','recordAttack'],['defense','recordDefense'],['stamina','recordStamina']]){const input=$('#'+idName);input.value=record.ivs[key];input.nextElementSibling.value=record.ivs[key];}
+  $('#recordLevel').value=record.level;$('#recordLevel').nextElementSibling.value=record.level;
+  $('#recordMaxKind').value=record.max.kind;$('#recordApex').checked=record.apex;$('#recordFavorite').checked=record.favorite;$('#recordTags').value=record.tags.join(', ');$('#recordNote').value=record.note;
+  $('#recordDialogTitle').textContent=`${record.nickname||pokemon?.name||record.speciesKey} 편집`;$('#recordError').hidden=true;
+  refreshRecordFormOptions(record.moves);const dialog=$('#recordDialog');if(!dialog.open)dialog.showModal();
+}
+
+function refreshRecordFormOptions(savedMoves=null) {
+  const record=state.collection.editing,pokemon=state.byKey.get($('#recordSpecies').value),moves=savedMoves||record?.moves||{fast:null,charged:[]};
+  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,`${move.ko}${move.elite?' · ELITE':''}`,move.id===current)).join('');};
+  fill('#recordFastMove',pokemon?.moves.fast||[],moves.fast,'모름');fill('#recordChargedMove1',pokemon?.moves.charged||[],moves.charged[0]||null,'모름');fill('#recordChargedMove2',pokemon?.moves.charged||[],moves.charged[1]||null,'없음·모름');refreshRecordFormEligibility();
+}
+
+function refreshRecordFormEligibility() {
+  const pokemon=state.byKey.get($('#recordSpecies').value),status=$('#recordStatus'),max=$('#recordMaxKind'),apex=$('#recordApex');
+  for(const option of status.options)if(option.value!=='normal')option.disabled=!pokemon?.shadowEligible&&option.value!==status.value;
+  const dynamax=max.querySelector('[value="dynamax"]'),gigantamax=max.querySelector('[value="gigantamax"]');dynamax.disabled=!pokemon?.dynamax&&max.value!=='dynamax';gigantamax.disabled=!pokemon?.gigantamax&&max.value!=='gigantamax';
+  if(status.value==='shadow'){max.value='none';max.disabled=true;}else max.disabled=false;
+  if(status.value!=='shadow'){apex.checked=false;apex.disabled=true;}else apex.disabled=!pokemon?.shadow?.apex&&!apex.checked;
+}
+
+function tagsFromInput(value) { return [...new Set(value.split(',').map(tag=>tag.trim()).filter(Boolean))].slice(0,20); }
+
+async function saveRecordEdits(event) {
+  event.preventDefault();const current=state.collection.records.find(item=>item.id===$('#recordId').value);if(!current)return;
+  const charged=[$('#recordChargedMove1').value,$('#recordChargedMove2').value].filter((id,index,items)=>id&&items.indexOf(id)===index),ivs={attack:Number($('#recordAttack').value),defense:Number($('#recordDefense').value),stamina:Number($('#recordStamina').value)},status=$('#recordStatus').value;
+  let hyperTraining=current.hyperTraining,trainingCleared=false;
+  if(hyperTraining){const keys=['attack','defense','stamina'],below=keys.some(key=>hyperTraining.targetIvs[key]<ivs[key]),noIncrease=!keys.some(key=>hyperTraining.targetIvs[key]>ivs[key]),silverMismatch=hyperTraining.capType==='silver'&&keys.some(key=>key!==hyperTraining.silverStat&&hyperTraining.targetIvs[key]!==ivs[key]);if(status==='shadow'||below||noIncrease||silverMismatch){hyperTraining=null;trainingCleared=true;}}
+  const patch={speciesKey:$('#recordSpecies').value,status,ivs,level:Number($('#recordLevel').value),moves:{fast:$('#recordFastMove').value||null,charged},max:{kind:status==='shadow'?'none':$('#recordMaxKind').value},apex:status==='shadow'&&$('#recordApex').checked,nickname:$('#recordNickname').value.trim(),favorite:$('#recordFavorite').checked,tags:tagsFromInput($('#recordTags').value),note:$('#recordNote').value,hyperTraining};
+  try {
+    const candidate={...current,...patch},validation=Collection.validateRecord(candidate);if(!validation.valid)throw new Error(validation.errors.map(item=>item.message).join(' '));
+    const audit=Collection.auditRecord(candidate,state.byKey,state.moveById);await state.collection.repo.update(current.id,patch,{expectedRevision:current.revision});$('#recordDialog').close();if(!await refreshAfterCommit('보유 개체 변경'))return;showToast(trainingCleared?'IV·상태 변경과 맞지 않는 특훈 계획을 제거하고 저장했습니다.':audit.warnings.length?`보유 개체를 저장했고 현재 도감과 다른 값 ${audit.warnings.length}개를 그대로 보존했습니다.`:'보유 개체 정보를 저장했습니다.');
+  } catch(error) {await refreshStaleRecord(error);$('#recordError').textContent=error.message;$('#recordError').hidden=false;}
+}
+
+async function deleteEditingRecord() {
+  const record=state.collection.records.find(item=>item.id===$('#recordId').value);if(!record||!confirm('이 보유 개체를 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;
+  try{await state.collection.repo.remove(record.id,{expectedRevision:record.revision});state.collection.selectedIds.delete(record.id);$('#recordDialog').close();if(await refreshAfterCommit('보유 개체 삭제'))showToast('보유 개체를 삭제했습니다.');}catch(error){await refreshStaleRecord(error);$('#recordError').textContent=error.message;$('#recordError').hidden=false;}
+}
+
+function loadRecordIntoDetail(id) {
+  const record=state.collection.records.find(item=>item.id===id),pokemon=record&&recordPokemon(record);if(!record||!pokemon){showToast('현재 도감에서 이 폼을 열 수 없습니다. 백업에는 계속 보존됩니다.');return;}
+  const snapshot=Collection.recordToSnapshot(record,{training:'base'});state.ivs={...snapshot.ivs};state.level=snapshot.level;selectPokemon(record.speciesKey,false);
+  state.ivs={...snapshot.ivs};state.level=snapshot.level;state.condition=snapshot.status;state.maxEligible=record.max.kind!=='none';state.maxKind=record.max.kind;state.apex=record.apex;
+  state.training=record.hyperTraining?{capType:record.hyperTraining.capType,silverStat:record.hyperTraining.silverStat||'attack',target:{...record.hyperTraining.targetIvs},goodBuddy:record.hyperTraining.goodBuddy,phase:record.hyperTraining.phase}:{capType:'none',silverStat:'attack',target:{...snapshot.ivs},goodBuddy:false,phase:'planned'};
+  history.pushState(null,'',`#pokemon=${encodeURIComponent(record.speciesKey)}`);renderDetail();document.body.classList.add('show-detail');
+  for(const dialog of [$('#recordDialog'),$('#compareDialog'),$('#collectionDialog')])if(dialog.open)dialog.close();
+  showToast(`${record.nickname||displayName(pokemon)}의 저장값을 도감에 불러왔습니다.`);
+}
+
+function backupMetadata() {
+  return{appVersion:'1.4.0',dataSnapshots:{pokemonUpdated:state.dataDate,pvpGeneratedAt:state.pvp.generatedAt||state.pvp.updated||''}};
+}
+
+function downloadText(text,filename,type) {
+  const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+async function exportCollection(format) {
+  if(!state.collection.repo){showToast(state.collection.error||'보유함을 사용할 수 없습니다.');return;}
+  try {
+    const date=new Date().toISOString().slice(0,10),text=format==='json'?await state.collection.repo.exportJSON(backupMetadata()):await state.collection.repo.exportCSV(backupMetadata());
+    downloadText(text,`go-valuedex-collection-${date}.${format}`,format==='json'?'application/json;charset=utf-8':'text/csv;charset=utf-8');showToast(`${format.toUpperCase()} 파일로 ${state.collection.records.length}마리를 내보냈습니다.`);
+  } catch(error) {showToast(`내보내지 못했습니다. ${error.message}`);}
+}
+
+async function exportCollectionRecovery() {
+  if(!state.collection.repo||!state.collection.recovery.length)return;
+  try {
+    const date=new Date().toISOString().slice(0,10),text=await state.collection.repo.exportRecoveryJSON({appVersion:'1.4.0'});
+    downloadText(text,`go-valuedex-recovery-${date}.json`,'application/json;charset=utf-8');showToast(`복구가 필요한 원본 ${state.collection.recovery.length}건을 별도 JSON으로 내보냈습니다.`);
+  } catch(error) {showToast(`복구 원본을 내보내지 못했습니다. ${error.message}`);}
+}
+
+async function importCollectionFile(event) {
+  const file=event.target.files?.[0];event.target.value='';if(!file||!state.collection.repo)return;
+  if(file.size>Collection.MAX_IMPORT_BYTES){showToast(`파일이 ${(Collection.MAX_IMPORT_BYTES/1024/1024).toFixed(0)}MB 제한을 초과해 읽지 않았습니다.`);return;}
+  const mode=$('#collectionImportMode').value;
+  if(mode==='replace'&&!confirm('가져온 파일로 현재 보유함 전체를 교체할까요? 파일 검증이 끝난 뒤 한 번에 적용됩니다.'))return;
+  let report;
+  try {
+    const text=await file.text(),isCsv=file.name.toLowerCase().endsWith('.csv')||file.type.includes('csv'),options={mode,conflict:'newer'};report=isCsv?await state.collection.repo.importCSV(text,options):await state.collection.repo.importJSON(text,options);
+  } catch(error) {
+    console.error(error);const details=error.errors?.map(item=>item.message).filter(Boolean).join(' ')||error.message;showToast(`파일을 적용하지 않았습니다. ${details}`);
+    return;
+  }
+  state.collection.selectedIds.clear();state.collection.limit=100;if(!await refreshAfterCommit('파일 가져오기'))return;const warningCount=(report.warnings?.length||0)+state.collection.records.reduce((sum,record)=>sum+Collection.auditRecord(record,state.byKey,state.moveById).warnings.length,0),warningText=warningCount?` · 현재 도감과 다른 값 ${warningCount}개 보존`:'';showToast(`가져오기 완료: 추가 ${report.added}, 갱신 ${report.updated}, 건너뜀 ${report.skipped}${warningText}`);
+}
+
+async function clearCollection() {
+  if(!state.collection.repo||(!state.collection.records.length&&!state.collection.recovery.length))return;
+  if(!confirm('보유함의 모든 기록을 삭제할까요? JSON 백업이 없다면 복구할 수 없습니다.'))return;
+  try{await state.collection.repo.clear();}catch(error){showToast(`보유함을 비우지 못했습니다. ${error.message}`);return;}state.collection.selectedIds.clear();if(await refreshAfterCommit('보유함 비우기'))showToast('보유함의 모든 기록을 삭제했습니다.');
+}
+
+function selectedCollectionRecords() { return [...state.collection.selectedIds].map(id=>state.collection.records.find(record=>record.id===id)).filter(Boolean).slice(0,4); }
+
+function openComparison() {
+  const records=selectedCollectionRecords();if(records.length<2||records.length>4)return;renderComparison();const dialog=$('#compareDialog');if(!dialog.open)dialog.showModal();
+}
+
+function recordMoveText(record) {
+  const fast=record.moves.fast?moveName(record.moves.fast):'모름',charged=record.moves.charged.length?record.moves.charged.map(id=>moveName(id)).join(' · '):'모름';return`${fast} / ${charged}`;
+}
+
+function comparisonRows(record,pokemon,mode) {
+  if(!pokemon)return[{label:'데이터 상태',value:'현재 도감에 없는 폼',score:null}];
+  const snapshot=effectiveSnapshot(record),current=Mechanics.applyStatusModifiers(statsAt(pokemon,snapshot.ivs,snapshot.level),snapshot.status),common=[
+    {label:'상태',value:`${statusLabel(record.status)}${record.max.kind!=='none'?` · ${maxKindLabel(record.max.kind)}`:''}`,score:null},
+    {label:'IV',value:`${snapshot.ivs.attack}/${snapshot.ivs.defense}/${snapshot.ivs.stamina}${record.hyperTraining?.phase==='completed'?' · 특훈 완료':''}`,score:snapshot.ivs.attack+snapshot.ivs.defense+snapshot.ivs.stamina},
+    {label:'레벨·현재 CP',value:`Lv.${snapshot.level} · CP ${current.cp.toLocaleString()}`,score:current.cp},
+    {label:'보유 기술',value:recordMoveText(record),score:null}
+  ];
+  if(LEAGUES[mode]){
+    const league=LEAGUES[mode],result=evaluate(pokemon,mode,snapshot),meta=snapshot.status==='shadow'?null:state.pvp.leagues[mode]?.[pokemon.speciesKey],tooHigh=league.cap!==Infinity&&current.cp>league.cap;
+    return common.concat([
+      {label:'용도 판정',value:`${result.title}${tooHigh?' · 현재 CP로 참가 불가':''}`,score:tooHigh?-1:(result.rank?.percent??-1)},
+      {label:'현재 참가',value:tooHigh?`불가 · CP ${current.cp.toLocaleString()}가 ${league.cap.toLocaleString()} 초과`:`가능 · CP ${current.cp.toLocaleString()}`,score:tooHigh?0:1},
+      {label:'종 메타',value:meta?`#${meta.rank} · ${meta.score}점`:snapshot.status==='shadow'?'그림자형 자료 없음':'현재 자료 없음',score:meta?100000-meta.rank:-1},
+      {label:'동종 IV 순위',value:result.rank?`#${result.rank.rank.toLocaleString()} · 효율 ${result.rank.percent.toFixed(2)}%`:'계산 불가',score:result.rank?.percent??-1}
+    ]);
+  }
+  if(mode==='pve'){
+    const metric=recordMetric(record,'pve'),result=evaluate(pokemon,'pve',snapshot);
+    return common.concat([{label:'용도 판정',value:result.title,score:metric.primary},{label:'실전 공격',value:current.attack.toFixed(1),score:current.attack},{label:'중립 화력 지수',value:metric.text,score:metric.primary}]);
+  }
+  if(mode==='max'){
+    const metric=recordMetric(record,'max'),supported=recordMaxSupported(record,pokemon)&&record.status!=='shadow',result=evaluate(pokemon,'max',{...snapshot,maxEligible:supported}),maxValue=record.max.kind==='none'?'없음':supported?maxKindLabel(record.max.kind):`${maxKindLabel(record.max.kind)} · 현재 폼과 불일치`;
+    return common.concat([{label:'용도 판정',value:result.title,score:metric.primary},{label:'Max 자격',value:maxValue,score:supported?1:0},{label:'Max 공격 기준',value:recordMaxAttackText(record,pokemon),score:null},{label:'역할 IV',value:metric.text,score:metric.primary}]);
+  }
+  const metric=recordMetric(record,'mega'),megaNames=pokemon.mega.map(mega=>mega.name).join(' · ');
+  return common.concat([{label:'Mega 가능',value:record.status==='shadow'?'그림자 상태에서는 불가':megaNames||'해당 없음',score:metric.primary},{label:'Mega 화력 지수',value:metric.text,score:metric.primary},{label:'주의',value:'Mega는 일시적 형태이며 Max와 동시에 사용할 수 없습니다.',score:null}]);
+}
+
+function renderComparison() {
+  const records=selectedCollectionRecords(),container=$('#compareTable');if(!container||records.length<2){if(container)container.innerHTML='<p class="collection-empty">비교할 개체를 2마리 이상 선택하세요.</p>';return;}
+  const columns=records.map(record=>({record,pokemon:recordPokemon(record),rows:comparisonRows(record,recordPokemon(record),state.collection.compareView)})),labels=[...new Set(columns.flatMap(column=>column.rows.map(row=>row.label)))];
+  const rows=labels.map(label=>{const values=columns.map(column=>column.rows.find(row=>row.label===label)||{value:'–',score:null}),scores=values.map(value=>value.score).filter(Number.isFinite),best=scores.length?Math.max(...scores):null;return`<tr><th scope="row">${esc(label)}</th>${values.map(value=>`<td class="${best!==null&&value.score===best&&scores.filter(score=>score===best).length===1?'best-value':''}">${esc(value.value)}</td>`).join('')}</tr>`;}).join('');
+  container.innerHTML=`<table class="compare-table"><thead><tr><th scope="col">항목</th>${columns.map(({record,pokemon})=>`<th scope="col"><img src="${esc(pokemon?.image||'')}" alt=""><strong>${esc(record.nickname||(pokemon?displayName(pokemon):record.speciesKey))}</strong><br><small>${esc(pokemon?padDex(pokemon.dex):record.speciesKey)}</small></th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 init();

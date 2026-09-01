@@ -12,6 +12,9 @@ test.describe('GitHub Pages shell and baseline Pokédex regressions', () => {
     ]);
     expect((await request.get(new URL('/', baseURL).href)).status()).toBe(404);
     expect((await request.get(new URL('mechanics.js', baseURL).href)).status()).toBe(200);
+    expect((await request.get(new URL('collection.js', baseURL).href)).status()).toBe(200);
+    expect((await request.get(new URL('collection.css', baseURL).href)).status()).toBe(200);
+    expect((await request.get(new URL('schemas/pokemon.schema.json', baseURL).href)).status()).toBe(200);
     await expect(page).toHaveTitle('GO ValueDex — Pokémon GO 개체값·실전 도감');
     await expect(page.locator('.sidebar-head h1')).toHaveText('개체값·실전 도감');
     await expect(page.locator('.hero-card h2')).toHaveText('리자몽');
@@ -79,11 +82,21 @@ test.describe('GitHub Pages shell and baseline Pokédex regressions', () => {
     await expect(page.locator('#transformationGrid')).toContainText('거다이맥스');
   });
 
-  test('preserves the selected league when navigating to an evolution', async ({ page }) => {
+  test('preserves the selected league in both evolution navigation paths', async ({ page }) => {
     await openDex(page, '1:normal');
     await page.locator('[data-mode="ultra"]').click();
     await expect(page.locator('[data-mode="ultra"]')).toHaveClass(/active/);
     await expect(page.locator('#ivResult h4')).toContainText('하이퍼리그');
+
+    await page.locator('.projection-card[data-select-key="3:normal"]').click();
+    await expect.poll(() => page.evaluate(() => state.selected?.speciesKey)).toBe('3:normal');
+    expect(await page.evaluate(() => state.mode)).toBe('ultra');
+    await expect(page.locator('[data-mode="ultra"]')).toHaveClass(/active/);
+    await expect(page.locator('#ivResult h4')).toContainText('하이퍼리그');
+
+    await page.locator('.evo-link[data-select-key="1:normal"]').click();
+    await expect.poll(() => page.evaluate(() => state.selected?.speciesKey)).toBe('1:normal');
+    expect(await page.evaluate(() => state.mode)).toBe('ultra');
 
     await page.locator('.evo-link[data-select-key="3:normal"]').click();
     await expect.poll(() => page.evaluate(() => state.selected?.speciesKey)).toBe('3:normal');

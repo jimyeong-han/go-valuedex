@@ -75,8 +75,8 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Run mechanics tests
-        run: npm run test:mechanics
+      - name: Run calculation and collection unit tests
+        run: npm run test:unit
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -120,12 +120,15 @@ jobs:
       - name: Assemble the static site only
         shell: bash
         run: |
-          mkdir -p _site/data
+          mkdir -p _site/data _site/schemas
           find . -maxdepth 1 -type f \
             \( -name '*.html' -o -name '*.css' -o -name '*.js' -o -name '*.svg' \
                -o -name '*.png' -o -name '*.ico' -o -name '*.webmanifest' -o -name '.nojekyll' \) \
             -exec cp {} _site/ \;
           find data -maxdepth 1 -type f -name '*.json' -exec cp {} _site/data/ \;
+          find schemas -maxdepth 1 -type f -name '*.json' -exec cp {} _site/schemas/ \;
+          test -s _site/schemas/pokemon.schema.json
+          test -s _site/schemas/pvp.schema.json
 
       - name: Upload the Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

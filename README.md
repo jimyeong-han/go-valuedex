@@ -2,7 +2,7 @@
 
 Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활용도를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
 
-현재 버전: **1.3** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.3) · [변경 기록](CHANGELOG.md)
+현재 버전: **1.4** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.4) · [변경 기록](CHANGELOG.md)
 
 ## 제공 기능
 
@@ -23,6 +23,11 @@ Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활�
 - 금색·은색병뚜껑 목표 IV, 과제 수, 특훈 전후 가치와 CP 제한 초과 경고
 - 버전형 JSON Schema, 출처 URL·수집 시각·SHA-256과 대량 변경 방지 검사
 - 데스크톱·390px 모바일 Playwright CI와 검증 성공 후에만 실행되는 GitHub Pages 배포
+- 현재 폼·상태·IV·레벨·기술·Max 자격·특훈 계획을 한 번에 저장하는 로컬 보유함
+- 별명·즐겨찾기·태그·메모 편집과 상태·태그 필터, PvP·PvE·Max·Mega 용도별 정렬
+- 같은 종 또는 다른 종의 보유 개체 2~4마리 비교
+- SHA-256 무결성 검사가 있는 버전형 JSON 백업과 CSV 가져오기·내보내기
+- 손상되거나 더 새로운 형식인 저장 원본을 정상 기록과 분리해 별도 복구 JSON으로 보존
 
 ## 로컬 실행
 
@@ -44,7 +49,9 @@ python3 -m http.server 8000
 2. **Settings → Pages → Build and deployment → Source**에서 `GitHub Actions`를 선택합니다.
 3. `main`에 푸시하면 품질검사를 모두 통과한 정적 파일만 Pages에 배포됩니다.
 
-앱은 완전한 정적 파일이므로 별도 환경변수나 API 키가 필요하지 않습니다.
+앱은 완전한 정적 파일이므로 별도 환경변수나 API 키가 필요하지 않습니다. 보유함은 로그인이나 서버 전송 없이 해당 브라우저의 IndexedDB에 저장됩니다. 브라우저 사이트 데이터를 삭제하거나 기기를 바꾸면 사라질 수 있으므로 보유함의 **가져오기·내보내기 → JSON 백업**을 주기적으로 보관하세요.
+
+GitHub Pages의 프로젝트 사이트들은 같은 `사용자명.github.io` 출처(origin)를 공유하므로, 같은 사용자 도메인의 다른 프로젝트에서 실행되는 JavaScript도 이 IndexedDB에 접근할 수 있습니다. 별명·태그·메모에는 민감한 개인정보를 저장하지 마세요. 저장 영역을 다른 프로젝트와 분리해야 한다면 이 앱에 전용 커스텀 도메인을 연결하세요.
 
 ## 데이터 갱신
 
@@ -64,7 +71,7 @@ npm ci
 python3 scripts/validate_schema.py
 python3 scripts/validate_data.py
 python3 -m unittest discover -s tests -p 'test_*.py'
-npm run test:mechanics
+npm run test:unit
 npx playwright install chromium
 npm run test:browser
 ```
@@ -93,6 +100,8 @@ npm run test:browser
 - 실전 분류는 현재 공개 데이터의 보수적 기준입니다. `수집·관상 중심`은 사용할 수 없다는 뜻이 아니며 시즌·기술·팀 구성에 따라 달라집니다.
 - 그림자 PvP 추천 기술 카드는 일반 폼 참고값이며, 화풀이 제거 가능 시기와 그림자 전용 메타는 게임 안에서 다시 확인해야 합니다.
 - 정화와 완료된 대단한 특훈의 IV 상승은 되돌릴 수 없습니다. 특훈에는 굿 파트너 이상이 필요하고 그림자·4★ 개체는 대상이 아니며, 특훈 개체는 Pokémon HOME으로 보낼 수 없습니다.
+- 보유함의 계산 결과는 파일에 고정 저장하지 않고 현재 도감·PvP 스냅샷으로 다시 계산합니다. 데이터가 갱신되면 같은 기록의 판정이 달라질 수 있습니다.
+- 보유함은 편의를 위한 로컬 기록입니다. 계정 정보, 위치, 연락처 등 민감한 개인정보를 별명·태그·메모에 저장하지 마세요.
 
 ## 주의
 

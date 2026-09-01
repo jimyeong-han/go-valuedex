@@ -41,12 +41,15 @@ class Limits:
     removed_form_floor: int = 5
     shadow_drop_ratio: float = 0.05
     shadow_drop_floor: int = 3
+    shadow_removal_cap: int = 30
     max_capable_drop_ratio: float = 0.10
     max_capable_drop_floor: int = 2
+    max_capable_removal_cap: int = 15
     move_coverage_drop_ratio: float = 0.02
     move_coverage_drop_floor: int = 3
     pvp_drop_ratio: float = 0.10
     pvp_drop_floor: int = 5
+    pvp_removal_cap: int = 75
     fingerprint_change_ratio: float = 0.005
     fingerprint_change_floor: int = 5
     move_signature_change_ratio: float = 0.05
@@ -253,16 +256,26 @@ def compare_snapshots(
         new_values: frozenset[str],
         ratio: float,
         floor: int,
+        absolute_cap: int | None = None,
     ) -> None:
-        drop = max(0, len(old_values) - len(new_values))
+        removed = old_values - new_values
+        removed_count = len(removed)
         limit = allowed_drop(len(old_values), ratio, floor)
-        if drop > limit:
+        if absolute_cap is not None:
+            limit = min(limit, absolute_cap)
+        if removed_count > limit:
             errors.append(
-                f"{label} coverage fell by {drop}; at most {limit} "
-                f"({ratio:.1%}, floor {floor}) is allowed."
+                f"{label} lost {removed_count} existing form(s); at most {limit} "
+                f"({ratio:.1%}, floor {floor}"
+                + (f", absolute cap {absolute_cap}" if absolute_cap is not None else "")
+                + ") is allowed. Sample: "
+                + ", ".join(sorted(removed)[:8])
             )
-        elif drop:
-            warnings.append(f"{label} coverage fell by {drop} (guard limit {limit}).")
+        elif removed_count:
+            warnings.append(
+                f"{label} lost {removed_count} existing form(s) (guard limit {limit}): "
+                + ", ".join(sorted(removed)[:8])
+            )
 
     check_coverage(
         "Shadow eligibility",
@@ -270,6 +283,7 @@ def compare_snapshots(
         current.shadow_keys,
         limits.shadow_drop_ratio,
         limits.shadow_drop_floor,
+        limits.shadow_removal_cap,
     )
     check_coverage(
         "Max capability",
@@ -277,6 +291,7 @@ def compare_snapshots(
         current.max_capable_keys,
         limits.max_capable_drop_ratio,
         limits.max_capable_drop_floor,
+        limits.max_capable_removal_cap,
     )
     check_coverage(
         "Fast-move",
@@ -299,6 +314,7 @@ def compare_snapshots(
             current.pvp_keys[league],
             limits.pvp_drop_ratio,
             limits.pvp_drop_floor,
+            limits.pvp_removal_cap,
         )
 
     common_keys = baseline_keys & current_keys
@@ -514,8 +530,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     print(f"Data diff baseline: {baseline_label}")
-    print("Guard thresholds: forms -1.5%, removed keys -1%, Shadow -5%, "
-          "Max -10%, move coverage -2%, PvP/league -10%, stats/types 0.5%, "
+    print("Guard thresholds: forms -1.5%, removed keys -1%, Shadow removals 5%/30, "
+          "Max removals 10%/15, move coverage removals 2%, PvP removals 10%/75, stats/types 0.5%, "
           "move-ID signatures 5%/75 forms; no Pokédex number may disappear.")
     for line in report.summary:
         print(f"  {line}")
