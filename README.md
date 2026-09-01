@@ -41,7 +41,7 @@ python3 -m http.server 8000
 python3 scripts/update_data.py
 ```
 
-매주 데이터 스냅샷을 확인하는 GitHub Actions 템플릿은 `scripts/update-data-workflow.yml`에 포함되어 있습니다. 사용하려면 저장소의 **Actions → New workflow**에서 내용을 붙여 넣어 `.github/workflows/update-data.yml`로 저장하세요. 외부 소스 구조가 바뀌면 안전 검증에 실패하고 기존 데이터는 그대로 유지됩니다.
+매주 데이터 스냅샷을 확인하는 GitHub Actions 워크플로도 포함되어 있습니다. 외부 소스 구조가 바뀌면 안전 검증에 실패하고 기존 데이터는 그대로 유지됩니다.
 
 데이터 출처:
 
