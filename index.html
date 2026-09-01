@@ -39,7 +39,7 @@
   </main>
 
   <footer>
-    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.5" target="_blank" rel="noopener">v1.5</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
+    <p>GO ValueDex <a href="https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.6" target="_blank" rel="noopener">v1.6</a> · <a href="https://github.com/jimyeong-han/go-valuedex/blob/main/CHANGELOG.md" target="_blank" rel="noopener">패치노트</a></p>
     <p>데이터: <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">Pokémon GO API</a> · <a href="https://pvpoke.com/" target="_blank" rel="noopener">PvPoke</a> · <a href="https://github.com/PokeMiners/game_masters" target="_blank" rel="noopener">PokeMiners</a> · <a href="https://www.serebii.net/pokemongo/maxbattles.shtml" target="_blank" rel="noopener">Serebii</a> · <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a></p>
     <p>비공식 팬 도구이며 Pokémon, Pokémon GO 및 각 상표는 해당 권리자에게 있습니다. 결과는 일반적인 투자 판단 보조이며 특정 대면전의 breakpoint를 보장하지 않습니다.</p>
   </footer>
@@ -50,6 +50,7 @@
       <article><strong>PvP</strong><p>4,096개 IV 조합을 모두 계산해 CP 제한 안에서 가능한 최고 레벨의 능력치 곱을 비교합니다. 종 자체의 메타 점수와 개체 순위는 별도로 보여줍니다.</p></article>
       <article><strong>두 가지 IV 지표</strong><p>IV 완성도는 세 수치의 합을 45로 나눈 게임 공통 표기입니다. 능력치 곱 비율은 종족값에 IV를 더한 공격·방어·체력의 곱을 같은 종 15/15/15와 비교하므로 포켓몬마다 달라집니다. 종 자체의 강함을 비교하는 점수는 아닙니다.</p></article>
       <article><strong>PvE</strong><p>레이드 타이머 때문에 공격을 우선합니다. 보스 분석에서는 정확한 폼·기술·날씨·난이도와 타입 상성을 반영하며, 중립 기술 추천과 결과를 구분합니다.</p></article>
+      <article><strong>특별 기술</strong><p>추천 조합의 ‘특별 기술’은 일반 기술머신으로 배울 수 없습니다. 안내에는 대단한 기술머신으로 가능한 기술과, 이벤트 포획·운석·합체·폼 체인지처럼 모든 기술머신으로 배울 수 없는 기술의 실제 획득 경로를 구분해 표시합니다. <a href="https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/2511-what-are-elite-tms/?hl=ko&p=web" target="_blank" rel="noopener">대단한 기술머신 안내</a></p></article>
       <article><strong>Max</strong><p>공격수는 공격 IV와 노말 기술 타입, 탱커·힐러는 방어와 HP를 봅니다. 실제로 맥스배틀에서 얻은 개체인지도 반드시 확인합니다.</p></article>
       <article><strong>Mega</strong><p>메가진화는 일시적으로 종족값과 타입을 바꾸고 레이드 파티를 강화합니다. 일반 진화와 별개의 운용 형태로 평가합니다.</p></article>
       <article><strong>실전 활용도</strong><p>현재 폼의 PvP 메타 순위, 일관된 자속 기술의 중립 레이드 화력, Mega·Max 역할을 합쳐 핵심 실전용·조건부 실전용·수집·관상 중심으로 분류합니다.</p></article>
@@ -89,7 +90,7 @@
         <label class="wide"><span>별명</span><input id="recordNickname" type="text" maxlength="40" placeholder="선택 사항"></label>
         <label><span>폼</span><select id="recordSpecies"></select></label>
         <label><span>상태</span><select id="recordStatus"><option value="normal">일반</option><option value="shadow">그림자</option><option value="purified">정화됨</option></select></label>
-        <fieldset class="wide record-ivs"><legend>개체값</legend><label><span>공격</span><input id="recordAttack" type="range" min="0" max="15"><output for="recordAttack">0</output></label><label><span>방어</span><input id="recordDefense" type="range" min="0" max="15"><output for="recordDefense">0</output></label><label><span>체력</span><input id="recordStamina" type="range" min="0" max="15"><output for="recordStamina">0</output></label></fieldset>
+        <fieldset class="wide record-ivs"><legend>개체값</legend><label><span>공격</span><span class="record-iv-range-wrap"><input id="recordAttack" data-record-iv-range="recordAttack" type="range" min="0" max="15" step="1" aria-label="공격 개체값 슬라이더"><span class="record-iv-range-ticks" aria-hidden="true"><i></i><i></i></span></span><input id="recordAttackNumber" class="record-iv-number" data-record-iv-number="recordAttack" type="number" min="0" max="15" step="1" inputmode="numeric" aria-label="공격 개체값 직접 입력"></label><label><span>방어</span><span class="record-iv-range-wrap"><input id="recordDefense" data-record-iv-range="recordDefense" type="range" min="0" max="15" step="1" aria-label="방어 개체값 슬라이더"><span class="record-iv-range-ticks" aria-hidden="true"><i></i><i></i></span></span><input id="recordDefenseNumber" class="record-iv-number" data-record-iv-number="recordDefense" type="number" min="0" max="15" step="1" inputmode="numeric" aria-label="방어 개체값 직접 입력"></label><label><span>체력</span><span class="record-iv-range-wrap"><input id="recordStamina" data-record-iv-range="recordStamina" type="range" min="0" max="15" step="1" aria-label="체력 개체값 슬라이더"><span class="record-iv-range-ticks" aria-hidden="true"><i></i><i></i></span></span><input id="recordStaminaNumber" class="record-iv-number" data-record-iv-number="recordStamina" type="number" min="0" max="15" step="1" inputmode="numeric" aria-label="체력 개체값 직접 입력"></label></fieldset>
         <label class="wide record-level"><span>강화 레벨</span><input id="recordLevel" type="range" min="1" max="50" step="0.5"><output for="recordLevel">1</output></label>
         <label><span>노말 기술</span><select id="recordFastMove"><option value="">모름</option></select></label>
         <label><span>차지 기술 1</span><select id="recordChargedMove1"><option value="">모름</option></select></label>

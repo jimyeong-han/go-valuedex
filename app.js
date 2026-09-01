@@ -1,7 +1,7 @@
 const Mechanics = window.ValueDexMechanics;
 if(!Mechanics)throw new Error('개체값 계산 모듈을 불러오지 못했습니다.');
 const Collection = window.ValueDexCollection;
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 
 const TYPE_ORDER = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'];
 const TYPE_KO = {normal:'노말',fire:'불꽃',water:'물',electric:'전기',grass:'풀',ice:'얼음',fighting:'격투',poison:'독',ground:'땅',flying:'비행',psychic:'에스퍼',bug:'벌레',rock:'바위',ghost:'고스트',dragon:'드래곤',dark:'악',steel:'강철',fairy:'페어리'};
@@ -210,7 +210,7 @@ function renderDetail() {
       <section class="panel panel-pad"><div class="section-label"><div><h3>기본 능력치와 실전 분류</h3><p>IV를 더하기 전 종족값과 현재 데이터 기준 활용도</p></div><span class="score-pill">${role.name}</span></div><div class="stats-grid">${stat('공격','attack')}${stat('방어','defense')}${stat('체력','stamina')}</div><p class="role-summary">${role.text}</p><div class="utility-summary ${utility.key}"><strong>${esc(utility.label)}</strong><p>${esc(utility.text)}</p>${utility.evolution?`<span>${esc(utility.evolution)}</span>`:''}</div></section>
       <section class="panel panel-pad"><div class="section-label"><div><h3>진화 계보</h3><p>같은 IV와 강화 레벨을 유지해 각각 다시 계산합니다</p></div></div><div class="evolution-chain">${evolutionHtml(p)}</div></section>
       <section class="panel iv-lab">
-        <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력 슬라이더를 움직이면 즉시 다시 계산합니다.</p></div><div class="iv-head-actions"><button id="quickSave" class="quick-save" type="button">현재 개체 저장</button><div class="appraisal"><b id="appraisalStars">–</b><span class="appraisal-values"><span id="appraisalPercent">IV 완성도 –</span><span id="statRetention">15/15/15 대비 능력치 곱 –</span></span></div></div></div>
+        <div class="iv-head"><div><h3>내 개체의 가치</h3><p>공격·방어·체력을 슬라이더나 숫자로 입력하면 즉시 다시 계산합니다.</p></div><div class="iv-head-actions"><button id="quickSave" class="quick-save" type="button">현재 개체 저장</button><div class="appraisal"><b id="appraisalStars">–</b><span class="appraisal-values"><span id="appraisalPercent">IV 완성도 –</span><span id="statRetention">15/15/15 대비 능력치 곱 –</span></span></div></div></div>
         ${statusSelectorHtml(p)}
         <div class="mode-tabs" role="tablist">${modeTab('great','슈퍼리그')}${modeTab('ultra','하이퍼리그')}${modeTab('master','마스터리그')}${modeTab('pve','레이드 PvE')}${modeTab('max','맥스배틀')}</div>
         <div class="iv-content"><div class="slider-panel">
@@ -229,7 +229,10 @@ function renderDetail() {
   bindIvEvents(); updateIvResults();
 }
 
-function ivSlider(label,key) { return `<div class="iv-slider"><label for="iv-${key}">${label}</label><input id="iv-${key}" data-iv="${key}" type="range" min="0" max="15" value="${state.ivs[key]}" aria-label="${label} 개체값"><output id="out-${key}">${state.ivs[key]}</output></div>`; }
+function ivSlider(label,key) {
+  const value=state.ivs[key];
+  return `<div class="iv-slider iv-stat-slider"><label for="iv-${key}">${label}</label><div class="iv-range-wrap"><input id="iv-${key}" data-iv="${key}" type="range" min="0" max="15" step="1" value="${value}" aria-label="${label} 개체값 슬라이더"><span class="iv-range-ticks" aria-hidden="true"><span class="iv-range-tick" data-iv-tick="5"></span><span class="iv-range-tick" data-iv-tick="10"></span></span></div><input id="iv-number-${key}" class="iv-number-input" data-iv-number="${key}" type="number" min="0" max="15" step="1" inputmode="numeric" value="${value}" aria-label="${label} 개체값 직접 입력"></div>`;
+}
 function levelSlider() { return `<div class="iv-slider"><label for="levelInput">레벨</label><input id="levelInput" type="range" min="1" max="50" step="0.5" value="${state.level}" aria-label="현재 포켓몬 레벨"><output id="levelOutput">${state.level}</output></div>`; }
 function statusSelectorHtml(pokemon) {
   const disabled=pokemon.shadowEligible?'':' disabled aria-disabled="true"';
@@ -246,7 +249,15 @@ function trainingPlannerHtml() {
 }
 
 function bindIvEvents() {
-  $$('[data-iv]',els.detail).forEach(input=>input.addEventListener('input',()=>{state.ivs[input.dataset.iv]=Number(input.value);$(`#out-${input.dataset.iv}`).value=input.value;syncTrainingTargets();updateIvResults();}));
+  const normalizeIv=value=>{const number=Number(value);return Number.isFinite(number)?Math.max(0,Math.min(15,Math.round(number))):0;};
+  const applyIv=(key,value,{writeNumber=true}={})=>{const normalized=normalizeIv(value),changed=state.ivs[key]!==normalized;state.ivs[key]=normalized;const range=$(`#iv-${key}`),number=$(`#iv-number-${key}`);if(range)range.value=String(normalized);if(writeNumber&&number)number.value=String(normalized);if(changed){syncTrainingTargets();updateIvResults();}return normalized;};
+  $$('[data-iv]',els.detail).forEach(input=>input.addEventListener('input',()=>applyIv(input.dataset.iv,input.value)));
+  $$('[data-iv-number]',els.detail).forEach(input=>{
+    input.addEventListener('input',()=>{if(input.value==='')return;const number=Number(input.value);if(Number.isFinite(number))applyIv(input.dataset.ivNumber,number,{writeNumber:false});});
+    const commit=()=>applyIv(input.dataset.ivNumber,input.value);
+    input.addEventListener('change',commit);
+    input.addEventListener('blur',commit);
+  });
   $('#levelInput').addEventListener('input',event=>{state.level=Number(event.target.value);$('#levelOutput').value=event.target.value;updateIvResults();});
   $('#maxEligible').addEventListener('change',event=>{state.maxEligible=event.target.checked;if(!state.maxEligible)state.maxKind='none';else if(!recordMaxKindSupported(state.maxKind,state.selected))state.maxKind=state.selected.dynamax?'dynamax':'gigantamax';updateIvResults();});
   $('#maxKindInput').addEventListener('change',event=>{state.maxKind=event.target.value;state.maxEligible=true;updateIvResults();});
@@ -382,9 +393,26 @@ function moveForPokemon(pokemon,id,kind) {
   return pokemon.moves[kind].find(move=>move.id===id)||state.moveById.get(id);
 }
 function moveName(id,move=state.moveById.get(id)) { return move?.ko||id.toLowerCase().split('_').map(word=>word[0].toUpperCase()+word.slice(1)).join(' '); }
+function moveAccessInfo(move) {
+  if(move?.access)return move.access;
+  return move?.elite?{kind:'elite_tm',tmLearnability:'elite_only',label:'이벤트·특별 진화·대단한 기술머신'}:null;
+}
+function exclusiveMoveHelp(move) {
+  const access=moveAccessInfo(move);if(!access)return'';
+  return access.tmLearnability==='none'?`${access.label} · 모든 기술머신으로 배울 수 없음`:`${access.label} · 일반 기술머신으로 배울 수 없음`;
+}
+function exclusiveMoveBadge(move) {
+  const access=moveAccessInfo(move);if(!access)return'';const help=exclusiveMoveHelp(move);
+  return`<span class="elite exclusive-move-badge" data-access-kind="${esc(access.kind)}" title="${esc(help)}" aria-label="특별 기술, ${esc(help)}">특별 기술</span>`;
+}
+function exclusiveMoveNotice(moves) {
+  const exclusive=[...new Map((moves||[]).filter(move=>moveAccessInfo(move)).map(move=>[move.id,move])).values()];
+  if(!exclusive.length)return'';
+  return`<p class="exclusive-move-note"><strong>특별 기술 포함</strong><span>${exclusive.map(move=>`${esc(moveName(move.id,move))}: ${esc(exclusiveMoveHelp(move))}`).join('<br>')}</span></p>`;
+}
 function moveLine(pokemon,id,kind,label) {
   const move=moveForPokemon(pokemon,id,kind);
-  return`<div class="move-line"><span class="move-kind">${label}</span><i class="move-type" ${move?typeAttrs(move.type):''}></i><b>${esc(moveName(id,move))}</b>${move?.elite?'<span class="elite">ELITE</span>':''}</div>`;
+  return`<div class="move-line" data-move-id="${esc(id)}" data-exclusive="${moveAccessInfo(move)?'true':'false'}"><span class="move-kind">${label}</span><i class="move-type" ${move?typeAttrs(move.type):''}></i><b>${esc(moveName(id,move))}</b>${exclusiveMoveBadge(move)}</div>`;
 }
 function pveProfile(pokemon,stabTypes=pokemon.types.map(type=>type.id)) {
   const combos=[];
@@ -399,11 +427,12 @@ function bestPve(pokemon) { return pveProfile(pokemon).raw; }
 function pvpMoveCard(pokemon,key,label) {
   const meta=state.pvp.leagues[key]?.[pokemon.speciesKey];
   if(!meta)return`<article class="move-set"><div class="move-set-head"><strong>${label}</strong><span class="score-pill">자료 없음</span></div><p class="move-caption">현재 대표 형태가 공개 전체 랭킹에 포함되지 않았습니다.</p></article>`;
-  return`<article class="move-set"><div class="move-set-head"><strong>${label}</strong><span class="score-pill">메타 ${meta.score} · #${meta.rank}</span></div>${meta.moves.map((id,index)=>moveLine(pokemon,id,index?'charged':'fast',index?'차지':'노말')).join('')}<p class="move-caption">PvPoke 전체 리그 시뮬레이션의 현재 추천입니다. 보통 차지 기술 2개 해방을 전제로 합니다.</p></article>`;
+  const moves=meta.moves.map((id,index)=>moveForPokemon(pokemon,id,index?'charged':'fast'));
+  return`<article class="move-set"><div class="move-set-head"><strong>${label}</strong><span class="score-pill">메타 ${meta.score} · #${meta.rank}</span></div>${meta.moves.map((id,index)=>moveLine(pokemon,id,index?'charged':'fast',index?'차지':'노말')).join('')}${exclusiveMoveNotice(moves)}<p class="move-caption">PvPoke 전체 리그 시뮬레이션의 현재 추천입니다. 보통 차지 기술 2개 해방을 전제로 합니다.</p></article>`;
 }
 function moveSetsHtml(pokemon) {
   const pve=bestPve(pokemon);
-  const pveCard=pve?`<article class="move-set"><div class="move-set-head"><strong>레이드 PvE</strong><span class="score-pill">중립 DPS ${pve.score.toFixed(1)}</span></div>${moveLine(pokemon,pve.fast.id,'fast','노말')}${moveLine(pokemon,pve.charged.id,'charged','차지')}<p class="move-caption">자속 보정 포함 중립 사이클 이론값입니다. 보스 타입에 맞춰 같은 타입 조합을 우선하세요.</p></article>`:`<article class="move-set"><strong>레이드 PvE</strong><p class="move-caption">현재 계산 가능한 공격 기술 조합이 없습니다.</p></article>`;
+  const pveCard=pve?`<article class="move-set"><div class="move-set-head"><strong>레이드 PvE</strong><span class="score-pill">중립 DPS ${pve.score.toFixed(1)}</span></div>${moveLine(pokemon,pve.fast.id,'fast','노말')}${moveLine(pokemon,pve.charged.id,'charged','차지')}${exclusiveMoveNotice([pve.fast,pve.charged])}<p class="move-caption">자속 보정 포함 중립 사이클 이론값입니다. 보스 타입에 맞춰 같은 타입 조합을 우선하세요.</p></article>`:`<article class="move-set"><strong>레이드 PvE</strong><p class="move-caption">현재 계산 가능한 공격 기술 조합이 없습니다.</p></article>`;
   return pvpMoveCard(pokemon,'great','PvP · 슈퍼리그')+pvpMoveCard(pokemon,'ultra','PvP · 하이퍼리그')+pvpMoveCard(pokemon,'master','PvP · 마스터리그')+pveCard;
 }
 
@@ -480,7 +509,15 @@ function bindCollectionEvents() {
   $('#recordSpecies').addEventListener('change',refreshRecordMovesPreservingValues);
   $('#recordStatus').addEventListener('change',refreshRecordMovesPreservingValues);
   $('#recordApex').addEventListener('change',refreshRecordMovesPreservingValues);
-  for(const id of ['recordAttack','recordDefense','recordStamina','recordLevel'])$('#'+id).addEventListener('input',event=>{event.target.nextElementSibling.value=event.target.value;});
+  const normalizeRecordIv=value=>{const number=Number(value);return Number.isFinite(number)?Math.max(0,Math.min(15,Math.round(number))):0;};
+  const syncRecordIv=(rangeId,value,{writeNumber=true}={})=>{const normalized=normalizeRecordIv(value),range=$('#'+rangeId),number=$('#'+rangeId+'Number');range.value=String(normalized);if(writeNumber)number.value=String(normalized);};
+  $$('[data-record-iv-range]').forEach(input=>input.addEventListener('input',()=>syncRecordIv(input.dataset.recordIvRange,input.value)));
+  $$('[data-record-iv-number]').forEach(input=>{
+    input.addEventListener('input',()=>{if(input.value==='')return;const number=Number(input.value);if(Number.isFinite(number))syncRecordIv(input.dataset.recordIvNumber,number,{writeNumber:false});});
+    const commit=()=>syncRecordIv(input.dataset.recordIvNumber,input.value);
+    input.addEventListener('change',commit);input.addEventListener('blur',commit);
+  });
+  $('#recordLevel').addEventListener('input',event=>{event.target.nextElementSibling.value=event.target.value;});
   $('.compare-modes').addEventListener('click',event=>{const button=event.target.closest('[data-compare-mode]');if(!button)return;state.collection.compareView=button.dataset.compareMode;$$('[data-compare-mode]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;});renderComparison();});
   $('.compare-modes').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=$$('[data-compare-mode]'),current=Math.max(0,tabs.indexOf(document.activeElement));let next=event.key==='Home'?0:event.key==='End'?tabs.length-1:event.key==='ArrowRight'?(current+1)%tabs.length:(current-1+tabs.length)%tabs.length;event.preventDefault();tabs[next].focus();tabs[next].click();});
   $('#appToast').addEventListener('click',event=>{const button=event.target.closest('[data-toast-action]');if(!button)return;const action=toastActions.get(button.dataset.toastAction);if(action)action();});
@@ -637,7 +674,7 @@ function openRecordEditor(id) {
   const pokemon=recordPokemon(record),forms=pokemon?(state.byDex.get(pokemon.dex)||[pokemon]):[];
   $('#recordSpecies').innerHTML=forms.length?forms.map(form=>optionHtml(form.speciesKey,displayName(form),form.speciesKey===record.speciesKey)).join(''):optionHtml(record.speciesKey,`${record.speciesKey} (현재 도감에 없음)`,true);
   $('#recordStatus').value=record.status;
-  for(const [key,idName] of [['attack','recordAttack'],['defense','recordDefense'],['stamina','recordStamina']]){const input=$('#'+idName);input.value=record.ivs[key];input.nextElementSibling.value=record.ivs[key];}
+  for(const [key,idName] of [['attack','recordAttack'],['defense','recordDefense'],['stamina','recordStamina']]){const value=String(record.ivs[key]);$('#'+idName).value=value;$('#'+idName+'Number').value=value;}
   $('#recordLevel').value=record.level;$('#recordLevel').nextElementSibling.value=record.level;
   $('#recordMaxKind').value=record.max.kind;$('#recordApex').checked=record.apex;$('#recordFavorite').checked=record.favorite;$('#recordTags').value=record.tags.join(', ');$('#recordNote').value=record.note;
   $('#recordDialogTitle').textContent=`${record.nickname||pokemon?.name||record.speciesKey} 편집`;$('#recordError').hidden=true;
@@ -663,7 +700,7 @@ function recordChargedMoveOptions(pokemon) {
 
 function refreshRecordFormOptions(savedMoves=null) {
   const record=state.collection.editing,pokemon=state.byKey.get($('#recordSpecies').value),moves=savedMoves||record?.moves||{fast:null,charged:[]};
-  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,`${move.ko||moveName(move.id,move)}${move.elite?' · ELITE':''}${move.statusOnly?' · 상태 전용':''}`,move.id===current)).join('');};
+  const fill=(selector,items,current,emptyLabel)=>{const known=items.some(move=>move.id===current),legacy=current&&!known?optionHtml(current,`${moveName(current)} · 이전 데이터`,true):'';$(selector).innerHTML=optionHtml('',emptyLabel,!current)+legacy+items.map(move=>optionHtml(move.id,`${move.ko||moveName(move.id,move)}${moveAccessInfo(move)?` · 특별 기술 (${exclusiveMoveHelp(move)})`:''}${move.statusOnly?' · 상태 전용':''}`,move.id===current)).join('');};
   const chargedMoves=recordChargedMoveOptions(pokemon);
   fill('#recordFastMove',pokemon?.moves.fast||[],moves.fast,'모름');fill('#recordChargedMove1',chargedMoves,moves.charged[0]||null,'모름');fill('#recordChargedMove2',chargedMoves,moves.charged[1]||null,'없음·모름');refreshRecordFormEligibility();
 }

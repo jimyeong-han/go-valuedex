@@ -59,7 +59,17 @@ for entry in pokemon:
     source_refs = set(entry["sourceRefs"])
     assert source_refs <= set(pokemon_data["sources"])
     assert {"pokemonGoApi", "pvpokeGameMaster", "serebiiMaxBattles"} <= source_refs
-    assert ("pokeMinersGameMaster" in source_refs) == bool(entry["shadow"])
+    derived_moves = [
+        move for pool in entry["moves"].values() for move in pool
+        if (move.get("access") or {}).get("tmLearnability") == "none"
+    ]
+    assert ("pokeMinersGameMaster" in source_refs) == bool(entry["shadow"] or derived_moves)
+    for move in entry["moves"]["fast"] + entry["moves"]["charged"]:
+        access = move.get("access")
+        assert bool(access) == (move["elite"] or move in derived_moves)
+        if access:
+            assert access["tmLearnability"] == ("elite_only" if move["elite"] else "none")
+            assert bool(access.get("source")) == (move in derived_moves)
     if entry["shadow"]:
         shadow = entry["shadow"]
         assert shadow["purificationStardust"] > 0 and shadow["purificationCandy"] > 0
@@ -160,6 +170,27 @@ assert by_key["249:normal"]["shadow"]["apex"]["shadowMove"] == "AEROBLAST_PLUS"
 assert by_key["249:normal"]["shadow"]["apex"]["purifiedMove"] == "AEROBLAST_PLUS_PLUS"
 assert by_key["250:normal"]["shadow"]["apex"]["shadowMove"] == "SACRED_FIRE_PLUS"
 assert by_key["250:normal"]["shadow"]["apex"]["purifiedMove"] == "SACRED_FIRE_PLUS_PLUS"
+
+special_move_fixtures = {
+    "384:normal": ("DRAGON_ASCENT", "special_item", 140, -50, 3500),
+    "483:origin": ("ROAR_OF_TIME", "event_encounter", 160, -100, 2000),
+    "484:origin": ("SPACIAL_REND", "event_encounter", 160, -100, 2500),
+    "646:black": ("FREEZE_SHOCK", "fusion", 160, -100, 1500),
+    "646:white": ("ICE_BURN", "fusion", 90, -50, 2000),
+    "800:dusk_mane": ("SUNSTEEL_STRIKE", "fusion", 230, -100, 3000),
+    "800:dawn_wings": ("MOONGEIST_BEAM", "fusion", 230, -100, 3000),
+    "888:crowned_sword": ("BEHEMOTH_BLADE", "form_change", 200, -100, 3500),
+    "889:crowned_shield": ("BEHEMOTH_BASH", "form_change", 125, -50, 1500),
+}
+for species_key, (move_id, access_kind, power, energy, duration) in special_move_fixtures.items():
+    moves = [move for move in by_key[species_key]["moves"]["charged"] if move["id"] == move_id]
+    assert len(moves) == 1, (species_key, move_id)
+    move = moves[0]
+    assert (move["power"], move["energy"], move["duration"]) == (power, energy, duration)
+    assert move["access"]["kind"] == access_kind
+    assert move["access"]["tmLearnability"] == "none"
+    assert move["access"]["source"].startswith("https://")
+    assert move_id in pvp["master"][species_key]["moves"]
 
 assert "888:normal" not in by_key
 assert {value["id"] for value in by_key["888:hero"]["types"]} == {"fairy"}

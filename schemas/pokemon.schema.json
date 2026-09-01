@@ -80,7 +80,21 @@
         "pvpPower": {"type": "integer"},
         "pvpEnergy": {"type": "integer"},
         "turns": {"type": "integer", "minimum": 0},
-        "elite": {"type": "boolean"}
+        "elite": {"type": "boolean"},
+        "access": {"$ref": "#/$defs/moveAccess"}
+      }
+    },
+    "moveAccess": {
+      "type": "object",
+      "required": ["kind", "tmLearnability", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["elite_tm", "event_encounter", "special_item", "fusion", "form_change", "status"]
+        },
+        "tmLearnability": {"enum": ["elite_only", "none"]},
+        "label": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "format": "uri", "pattern": "^https://"}
       }
     },
     "evolution": {

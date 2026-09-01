@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from scripts.update_data import apply_special_move_overlays
 from scripts.validate_schema import assert_offline_schema, validate_document
 
 
@@ -97,6 +98,34 @@ class DataContractTests(unittest.TestCase):
 
         self.assert_rejected("pokemon", mutate, "pokeMinersGameMaster")
 
+    def test_rejects_non_tm_move_without_official_source(self):
+        def mutate(document):
+            record = next(
+                record for record in document["pokemon"]
+                if record["speciesKey"] == "384:normal"
+            )
+            move = next(
+                move for move in record["moves"]["charged"]
+                if move["id"] == "DRAGON_ASCENT"
+            )
+            del move["access"]["source"]
+
+        self.assert_rejected("pokemon", mutate, "requires an HTTPS source")
+
+    def test_rejects_non_tm_move_mislabeled_as_elite_tm(self):
+        def mutate(document):
+            record = next(
+                record for record in document["pokemon"]
+                if record["speciesKey"] == "483:origin"
+            )
+            move = next(
+                move for move in record["moves"]["charged"]
+                if move["id"] == "ROAR_OF_TIME"
+            )
+            move["access"]["kind"] = "elite_tm"
+
+        self.assert_rejected("pokemon", mutate, "elite_tm must be elite_only")
+
     def test_rejects_cross_league_provenance(self):
         def mutate(document):
             ranking = next(iter(document["leagues"]["great"].values()))
@@ -109,6 +138,15 @@ class DataContractTests(unittest.TestCase):
             document["pokemon"][0]["accidentalField"] = True
 
         self.assert_rejected("pokemon", mutate, "Additional properties are not allowed")
+
+    def test_special_move_overlay_stops_when_upstream_adds_the_move(self):
+        pokemon = [{
+            "speciesKey": "384:normal",
+            "moves": {"fast": [], "charged": [{"id": "DRAGON_ASCENT"}]},
+            "sourceRefs": [],
+        }]
+        with self.assertRaisesRegex(RuntimeError, "now present in the upstream move pool"):
+            apply_special_move_overlays(pokemon, [])
 
 
 if __name__ == "__main__":

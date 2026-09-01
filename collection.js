@@ -12,7 +12,7 @@
   const RECORD_VERSION = 1;
   const EXPORT_FORMAT = 'go-valuedex-collection';
   const EXPORT_FORMAT_VERSION = 1;
-  const DEFAULT_APP_VERSION = '1.5.0';
+  const DEFAULT_APP_VERSION = '1.6.0';
   // A maximally sized valid 10,000-record export stays below this bound once
   // the identifier/timestamp limits below are applied, so every backup this
   // version can create remains importable.

@@ -2,15 +2,16 @@
 
 Pokémon GO 포켓몬을 검색하고, 보유 개체의 IV와 실제 전투 활용도를 용도별로 판단하는 모바일 우선 정적 웹 앱입니다. 서버나 로그인이 필요하지 않으며 GitHub Pages에 바로 배포할 수 있습니다.
 
-현재 버전: **1.5** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.5) · [변경 기록](CHANGELOG.md)
+현재 버전: **1.6** · [릴리즈](https://github.com/jimyeong-han/go-valuedex/releases/tag/v1.6) · [변경 기록](CHANGELOG.md)
 
 ## 제공 기능
 
 - 1,188개 평가 폼의 한국어·영문명·도감 번호 검색과 타입/`세대 (지역)`/메가/다이맥스 필터
 - 일반·지역·전투 폼을 독립적으로 선택하고 공유할 수 있는 폼별 URL
-- 공격·방어·체력 `0–15` 슬라이더 및 현재 강화 레벨 입력
+- 5·10 구분선이 있는 공격·방어·체력 `0–15` 슬라이더, 동기화된 숫자 직접 입력 및 현재 강화 레벨 입력
 - 모든 종에 공통인 IV 완성도와 같은 종 15/15/15 대비 포켓몬마다 달라지는 능력치 곱 비율 분리 표시
 - PvP·중립 레이드 화력·Mega·Max 근거를 분리한 `핵심 실전용 / 조건부 실전용 / 수집·관상 중심` 분류
+- PvP·PvE·보스별 추천 조합에 일반 기술머신으로 배울 수 없는 특별 기술이 포함되면 기술별 배지와 획득 경로 주의 표시
 - 슈퍼·하이퍼·마스터리그의 4,096개 IV 조합 전수 순위
 - PvP 개체 적합도와 해당 종의 메타 활용도를 분리한 설명
 - 레이드 PvE 공격 우선 평가 및 중립 사이클 기술 추천
@@ -86,7 +87,7 @@ npm run test:browser
 
 - [Pokémon GO API](https://github.com/pokemon-go-api/pokemon-go-api): 한국어 이름, GO 종족값, 진화, 기술, 메가 형태
 - [PvPoke](https://github.com/pvpoke/pvpoke): 현재 PvP 리그 랭킹과 추천 기술
-- [PokeMiners Game Masters](https://github.com/PokeMiners/game_masters): 폼별 정화 비용과 그림자·정화 기술
+- [PokeMiners Game Masters](https://github.com/PokeMiners/game_masters): 폼별 정화 비용, 그림자·정화 기술, 별도 배포 기술의 전투 수치
 - [Niantic 도움말](https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/2187-what-are-raid-battles/): 레이드 종류와 전투·날씨·Mega 부스트의 공식 규칙
 - [Bulbapedia Raid Battle](https://bulbapedia.bulbagarden.net/wiki/Raid_Battle_(GO)): 공식 미공개 레이드 HP·CPM·제한시간의 커뮤니티 검증 프리셋
 - [Serebii Max Battles](https://www.serebii.net/pokemongo/maxbattles.shtml): Pokémon GO에서 확인된 다이맥스·거다이맥스 가능 종
@@ -103,6 +104,7 @@ npm run test:browser
 - 보스 분석 DPS는 에너지 상한 100에서 넘친 에너지는 버리고, 사용 뒤 남은 에너지는 다음 사이클로 이월하는 장기 평균입니다. 피격으로 얻는 에너지와 유한 전투 마지막의 남은 에너지는 반영하지 않습니다. 원본 데이터에 사용 가능한 PvE 차지 에너지가 없는 기술(예: 발악)은 임의 추정하지 않고 분석에서 제외합니다. 보스의 노말·차지 기술을 모두 지정했을 때만 예상 TDO를 계산하며, 하나라도 모르면 단순 내구 기반 TDO 지수를 표시합니다.
 - 레이드 보스별 HP·CPM·제한시간은 공식 실시간 피드가 아닌 수정 가능한 커뮤니티 검증 프리셋입니다. 이론 처치시간은 회피·재입장·우정·파티 파워·통신 지연·보스 AI를 제외합니다.
 - IV 완성도는 `(공격 IV + 방어 IV + 체력 IV) / 45`라서 같은 IV면 모든 종에서 같습니다. 별도의 `15/15/15 대비 능력치 곱`은 `(종족값 + 현재 IV)` 세 능력치의 곱을 같은 종 완벽 개체의 곱과 비교하므로 포켓몬마다 달라지지만, 서로 다른 종의 강함이나 PvE 가치를 비교하는 점수는 아닙니다.
+- `특별 기술` 표시는 일반 기술머신으로 배울 수 없는 기술입니다. 대단한 기술머신으로 배울 수 있는 기술과 모든 기술머신으로 배울 수 없는 기술을 나누고, 후자는 공식 획득 방식인 이벤트 레이드 포획·운석·합체·폼 체인지 경로를 기술별로 표시합니다. 현재 별도 배포 오버레이는 화룡점정, 시간의포효, 공간절단, 프리즈볼트, 콜드플레어, 메테오드라이브, 섀도레이, 거수참, 거수탄의 정확한 폼만 지원합니다. 이벤트 기간과 현재 재획득 가능 여부는 실시간 데이터가 아니며, 이후 추가되는 별도 배포 기술은 검토 전까지 표시되지 않을 수 있습니다. [대단한 기술머신 안내](https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/2511-what-are-elite-tms/?hl=ko&p=web), [Adventure Effect 기술의 TM 제한](https://niantic.helpshift.com/hc/en/6-pokemon-go/faq/4386-what-are-adventure-effects/?f=trading-pokemon&p=web)
 - 다이맥스 자격은 종이 아니라 개별 포켓몬에 붙습니다. 지원 종의 일반 개체는 맥스배틀에 사용할 수 없습니다.
 - 진화하면 IV와 레벨은 유지되지만 CP와 종족값 기반 순위는 달라집니다.
 - 폼별 PvP 정보는 도감 번호만으로 추정하지 않고 종족값·타입·기술이 정확히 일치할 때만 연결합니다.

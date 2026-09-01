@@ -8,6 +8,10 @@
 
 .appraisal-values{display:grid;gap:2px}.appraisal-values span:last-child{color:var(--green);font-weight:800}
 
+.exclusive-move-badge{white-space:nowrap;background:#fff0cb;color:#76520a}
+.exclusive-move-note{display:grid;gap:3px;margin:10px 0 0;padding:9px 10px;border:1px solid #ecd7ac;border-radius:9px;background:#fff9ea;color:#674f20;font-size:10px;line-height:1.5}
+.exclusive-move-note strong{color:#76520a;font-size:10px}.exclusive-move-note span{overflow-wrap:anywhere}
+
 /* Type palette */
 [data-type=normal]{--type-color:#8e9892}[data-type=fire]{--type-color:#e66d45}[data-type=water]{--type-color:#4d82cc}[data-type=electric]{--type-color:#d9ad32}[data-type=grass]{--type-color:#55a45e}[data-type=ice]{--type-color:#64b8ba}[data-type=fighting]{--type-color:#b65a4e}[data-type=poison]{--type-color:#9164a5}[data-type=ground]{--type-color:#bd8950}[data-type=flying]{--type-color:#7698cf}[data-type=psychic]{--type-color:#d06489}[data-type=bug]{--type-color:#8eaa47}[data-type=rock]{--type-color:#a8925f}[data-type=ghost]{--type-color:#6e659d}[data-type=dragon]{--type-color:#5e6cad}[data-type=dark]{--type-color:#625c59}[data-type=steel]{--type-color:#758d94}[data-type=fairy]{--type-color:#d982a6}
 
@@ -23,3 +27,16 @@
 /* v1.5 mobile readability and touch-target safeguards. */
 .feature-dot,.elite,.utility-mini,.scenario-badge,.scenario-card dt,.collection-dialog .collection-tags span{font-size:10px}
 @media(max-width:760px){input[type=range]{min-height:44px}}
+
+/* Pokémon GO-style IV scale: 0–5–10–15 sections plus direct numeric entry. */
+.iv-stat-slider{grid-template-columns:52px minmax(0,1fr) 50px}
+.iv-range-wrap{--iv-edge-inset:8px;position:relative;display:flex;min-width:0;height:44px;align-items:center}
+.iv-range-wrap input[type=range]{position:relative;z-index:1;width:100%;height:44px;min-width:0;margin:0}
+.iv-range-ticks{position:absolute;z-index:2;top:50%;right:var(--iv-edge-inset);left:var(--iv-edge-inset);height:16px;transform:translateY(-50%);pointer-events:none}
+.iv-range-tick{position:absolute;top:50%;width:2px;height:14px;transform:translate(-50%,-50%);border-radius:2px;background:#fff;box-shadow:0 0 0 1px #41504999}
+.iv-range-tick[data-iv-tick="5"]{left:33.333333%}
+.iv-range-tick[data-iv-tick="10"]{left:66.666667%}
+.iv-slider .iv-number-input{width:50px;height:36px;margin:0;padding:0 3px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);font-size:13px;font-weight:800;text-align:center;cursor:text}
+.iv-number-input:focus-visible,.iv-range-wrap input[type=range]:focus-visible{outline:3px solid #1b7a5229;outline-offset:2px}
+
+@media(max-width:760px){.iv-stat-slider{grid-template-columns:48px minmax(0,1fr) 50px}.iv-slider .iv-number-input{height:44px}}

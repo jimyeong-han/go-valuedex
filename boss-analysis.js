@@ -43,6 +43,39 @@
   const moveLabel = move => move?.ko || move?.en || move?.id || '알 수 없음';
   const typeLabel = type => TYPE_KO?.[type] || type;
 
+  function moveAccessInfo(move) {
+    if(move?.access)return move.access;
+    if(move?.elite)return{kind:'elite_tm',tmLearnability:'elite_only',label:'이벤트·특별 진화·대단한 기술머신'};
+    if(move?.status){
+      const labels={FRUSTRATION:'그림자 포켓몬 포획',RETURN:'그림자 포켓몬 정화',AEROBLAST_PLUS:'APEX 그림자 루기아',AEROBLAST_PLUS_PLUS:'APEX 루기아 정화',SACRED_FIRE_PLUS:'APEX 그림자 칠색조',SACRED_FIRE_PLUS_PLUS:'APEX 칠색조 정화'};
+      return{kind:'status',tmLearnability:'none',label:labels[move.id]||'그림자·정화 상태 전용'};
+    }
+    return null;
+  }
+
+  function moveAccessHelp(move) {
+    const access=moveAccessInfo(move);if(!access)return'';
+    return access.tmLearnability==='none'?`${access.label} · 모든 기술머신으로 배울 수 없음`:`${access.label} · 일반 기술머신으로 배울 수 없음`;
+  }
+
+  function moveAccessBadge(move) {
+    const access=moveAccessInfo(move);if(!access)return'';const status=access.kind==='status',help=moveAccessHelp(move);
+    if(status)return`<span class="boss-move-access status" data-access-kind="status" title="${safe(help)}">상태 전용</span>`;
+    return`<span class="boss-move-access exclusive" data-access-kind="${safe(access.kind)}" title="${safe(help)}" aria-label="특별 기술, ${safe(help)}">특별 기술</span>`;
+  }
+
+  function resultMoveHtml(move) {
+    return`${safe(moveLabel(move))}${moveAccessBadge(move)}`;
+  }
+
+  function moveAccessNotice(moves) {
+    const unique=[...new Map(moves.filter(move=>moveAccessInfo(move)).map(move=>[move.id,move])).values()],exclusive=unique.filter(move=>moveAccessInfo(move).kind!=='status'),statusOnly=unique.filter(move=>moveAccessInfo(move).kind==='status');
+    const notices=[];
+    if(exclusive.length)notices.push(`<strong>특별 기술 포함</strong> ${exclusive.map(move=>`${safe(moveLabel(move))}: ${safe(moveAccessHelp(move))}`).join('<br>')}`);
+    if(statusOnly.length)notices.push(`<strong>상태 전용 기술</strong> ${statusOnly.map(move=>`${safe(moveLabel(move))}: ${safe(moveAccessHelp(move))}`).join('<br>')}`);
+    return notices.length?`<p class="boss-move-access-note">${notices.join('<br>')}</p>`:'';
+  }
+
   function bossOptionLabel(pokemon) {
     const types=(pokemon.types||[]).map(type=>type.ko||typeLabel(type.id||type)).join('·');
     return `${typeof padDex==='function'?padDex(pokemon.dex):`#${pokemon.dex}`} ${pokemonName(pokemon)} · ${types}${pokemon.raidTransformation?' · 보스 폼':''}`;
@@ -226,7 +259,7 @@
 
   function renderResultCard(best, index, boss) {
     const {candidate,fastMove,chargedMove,result,breakpoint}=best,metrics=result.metrics,dps=metrics.dpsProxy,ttw=metrics.estimatedPartyTimeSeconds??numeric(byId('bossHp').value)/dps,required=metrics.estimatedRequiredPlayers??Math.ceil(ttw/numeric(byId('bossTimer').value)),effectiveness=resultEffectiveness(best,boss),tdo=metrics.tdoEstimate??metrics.tdoProxy,tdoLabel=metrics.tdoEstimate!=null?'예상 TDO':'TDO 지수',fastEffect=BossEngine.typeEffectiveness(fastMove.type,boss.types),chargedEffect=BossEngine.typeEffectiveness(chargedMove.type,boss.types),bossFastKnown=Boolean(byId('bossFastMove').value),bossChargedKnown=Boolean(byId('bossChargedMove').value),incomingLabel=bossFastKnown&&bossChargedKnown?'보스 기술 반영':bossFastKnown||bossChargedKnown?'보스 기술 일부만 지정 · 예상 TDO 미산출':'보스 기술 미지정 · 예상 TDO 미산출',breakpointText=breakpoint?.nextBreakpoint?`다음 노말 BP 공격 IV ${breakpoint.nextBreakpoint.attackIv} · ${breakpoint.nextBreakpoint.damage} 피해`:`노말 ${breakpoint?.currentDamage??result.outgoing.fast?.damage??'–'} 피해 · 이후 IV BP 없음`;
-    return `<article class="boss-result-card" data-attacker-key="${safe(candidate.key)}" data-dps="${dps.toFixed(6)}" data-ttw="${Number(ttw).toFixed(6)}" data-effectiveness="${Number(effectiveness.toFixed(6))}" data-required-players="${required}" data-breakpoint="${breakpoint?.nextBreakpoint?.attackIv??''}"><span class="boss-rank">#${index+1}</span><div class="boss-result-copy"><h3>${safe(candidate.name)}<span>${safe(candidate.kindLabel)}</span></h3><p>${safe(moveLabel(fastMove))} + ${safe(moveLabel(chargedMove))} · ${safe(candidate.moveAssumption)}</p><div class="boss-result-badges"><span class="${fastEffect>1.6?'super':''}">${safe(typeLabel(fastMove.type))} ×${fastEffect.toFixed(2).replace(/0$/,'')}</span><span class="${chargedEffect>1.6?'super':''}">${safe(typeLabel(chargedMove.type))} ×${chargedEffect.toFixed(2).replace(/0$/,'')}</span><span>${safe(breakpointText)}</span>${candidate.isMega?'<span>MEGA 폼</span>':''}${candidate.status==='shadow'?'<span>SHADOW ×1.2</span>':''}<span>${safe(incomingLabel)}</span></div></div><div class="boss-result-metrics"><div><span>DPS 사이클 추정</span><strong>${dps.toFixed(2)}</strong></div><div><span>${tdoLabel}</span><strong>${Number.isFinite(tdo)?Number(tdo).toFixed(1):'–'}</strong></div><div><span>예상 처치시간(이론)</span><strong>${formatSeconds(ttw)}</strong></div><div><span>최소 인원(이론)</span><strong>${required}명</strong></div></div></article>`;
+    return `<article class="boss-result-card" data-attacker-key="${safe(candidate.key)}" data-dps="${dps.toFixed(6)}" data-ttw="${Number(ttw).toFixed(6)}" data-effectiveness="${Number(effectiveness.toFixed(6))}" data-required-players="${required}" data-breakpoint="${breakpoint?.nextBreakpoint?.attackIv??''}"><span class="boss-rank">#${index+1}</span><div class="boss-result-copy"><h3>${safe(candidate.name)}<span>${safe(candidate.kindLabel)}</span></h3><p class="boss-move-combo">${resultMoveHtml(fastMove)} + ${resultMoveHtml(chargedMove)} · ${safe(candidate.moveAssumption)}</p>${moveAccessNotice([fastMove,chargedMove])}<div class="boss-result-badges"><span class="${fastEffect>1.6?'super':''}">${safe(typeLabel(fastMove.type))} ×${fastEffect.toFixed(2).replace(/0$/,'')}</span><span class="${chargedEffect>1.6?'super':''}">${safe(typeLabel(chargedMove.type))} ×${chargedEffect.toFixed(2).replace(/0$/,'')}</span><span>${safe(breakpointText)}</span>${candidate.isMega?'<span>MEGA 폼</span>':''}${candidate.status==='shadow'?'<span>SHADOW ×1.2</span>':''}<span>${safe(incomingLabel)}</span></div></div><div class="boss-result-metrics"><div><span>DPS 사이클 추정</span><strong>${dps.toFixed(2)}</strong></div><div><span>${tdoLabel}</span><strong>${Number.isFinite(tdo)?Number(tdo).toFixed(1):'–'}</strong></div><div><span>예상 처치시간(이론)</span><strong>${formatSeconds(ttw)}</strong></div><div><span>최소 인원(이론)</span><strong>${required}명</strong></div></div></article>`;
   }
 
   async function runAnalysis() {

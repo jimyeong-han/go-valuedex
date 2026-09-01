@@ -101,6 +101,18 @@ test('quick saves once into IndexedDB and survives reload', async ({ page }) => 
   expect(await readIndexedDb(page)).toEqual(beforeReload);
 });
 
+test('explains a non-TM move route in the specimen move selector', async ({ page }) => {
+  desktopOnly(page);
+  await openCollectionApp(page, '384:normal');
+  await page.locator('#quickSave').click();
+  await page.locator('#openCollection').click();
+  await page.locator('[data-record-edit]').click();
+
+  const option = page.locator('#recordChargedMove1 option[value="DRAGON_ASCENT"]');
+  await expect(option).toHaveCount(1);
+  await expect(option).toHaveText('화룡점정 · 특별 기술 (운석 사용 · 모든 기술머신으로 배울 수 없음)');
+});
+
 test('edits all specimen metadata and filters the saved card', async ({ page }) => {
   desktopOnly(page);
   await openCollectionApp(page, '6:normal');
@@ -113,6 +125,16 @@ test('edits all specimen metadata and filters the saved card', async ({ page }) 
   await expect(page.locator('#collectionDialog')).toBeVisible();
   await page.locator('[data-record-edit]').click();
   await expect(page.locator('#recordDialog')).toBeVisible();
+
+  await expect(page.locator('[data-record-iv-number]')).toHaveCount(3);
+  await page.locator('#recordAttackNumber').fill('9');
+  await expect(page.locator('#recordAttack')).toHaveValue('9');
+  await page.locator('#recordDefense').evaluate(input=>{input.value='7';input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await expect(page.locator('#recordDefenseNumber')).toHaveValue('7');
+  await page.locator('#recordStaminaNumber').fill('99');
+  await page.locator('#recordStaminaNumber').blur();
+  await expect(page.locator('#recordStamina')).toHaveValue('15');
+  await expect(page.locator('#recordStaminaNumber')).toHaveValue('15');
 
   const note = '서울, 강남 레이드\n"교환 금지" 메모';
   await page.locator('#recordNickname').fill('리자몽 실전 1호');
@@ -131,6 +153,7 @@ test('edits all specimen metadata and filters the saved card', async ({ page }) 
   expect(records).toHaveLength(1);
   expect(records[0]).toMatchObject({
     revision: 2,
+    ivs: { attack: 9, defense: 7, stamina: 15 },
     nickname: '리자몽 실전 1호',
     moves: { fast: 'FIRE_SPIN', charged: ['BLAST_BURN', 'DRAGON_CLAW'] },
     max: { kind: 'gigantamax' },
@@ -276,7 +299,7 @@ test('round-trips a JSON download and rejects an invalid JSON atomically', async
   await page.locator('#exportCollectionJson').click();
   const backup = await downloadBuffer(await downloadPromise);
   const envelope = JSON.parse(backup.toString('utf8'));
-  expect(envelope).toMatchObject({ format: 'go-valuedex-collection', formatVersion: 1, appVersion: '1.5.0', recordCount: 2 });
+  expect(envelope).toMatchObject({ format: 'go-valuedex-collection', formatVersion: 1, appVersion: '1.6.0', recordCount: 2 });
   expect(envelope.records.sort((left, right) => left.id.localeCompare(right.id))).toEqual(original);
 
   page.once('dialog', dialog => dialog.accept());
@@ -594,7 +617,7 @@ test('keeps valid records usable and exports unreadable recovery originals', asy
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#exportCollectionRecovery').click();
   const recovery = JSON.parse((await downloadBuffer(await downloadPromise)).toString('utf8'));
-  expect(recovery).toMatchObject({format: 'go-valuedex-recovery', formatVersion: 1, appVersion: '1.5.0'});
+  expect(recovery).toMatchObject({format: 'go-valuedex-recovery', formatVersion: 1, appVersion: '1.6.0'});
   expect(recovery.entries).toHaveLength(1);
   expect(recovery.entries[0]).toMatchObject({
     id: 'future-row',
@@ -622,6 +645,14 @@ test('keeps quick save and four-way comparison usable without 390px page overflo
   await page.locator('#openCollection').click();
   await expect(page.locator('#collectionDialog')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.locator('[data-record-edit]').first().click();
+  await expect(page.locator('#recordDialog')).toBeVisible();
+  expect(await page.locator('#recordAttackNumber').evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.locator('#recordAttackNumber').fill('8');
+  await expect(page.locator('#recordAttack')).toHaveValue('8');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('[data-close-dialog="recordDialog"]').first().click();
 
   await page.locator('#toggleCompare').click();
   const recordIds = await page.locator('.collection-card').evaluateAll(cards => cards.map(card => card.dataset.recordId));

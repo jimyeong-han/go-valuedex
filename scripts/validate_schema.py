@@ -127,12 +127,47 @@ def source_ref_errors(document: dict[str, Any], kind: str) -> list[str]:
             if missing:
                 errors.append(f"pokemon {species_key}: missing sourceRefs {sorted(missing)}")
             has_shadow = isinstance(record.get("shadow"), dict)
-            if has_shadow != (POKEMINERS_SOURCE in refs):
+            has_special_move = any(
+                isinstance(move, dict)
+                and isinstance(move.get("access"), dict)
+                and move["access"].get("tmLearnability") == "none"
+                for pool in (record.get("moves") or {}).values()
+                for move in (pool or [])
+            )
+            if (has_shadow or has_special_move) != (POKEMINERS_SOURCE in refs):
                 errors.append(
-                    f"pokemon {species_key}: pokeMinersGameMaster must be referenced exactly when shadow data exists"
+                    f"pokemon {species_key}: pokeMinersGameMaster must be referenced exactly when derived move or shadow data exists"
                 )
             if record.get("shadowEligible") != has_shadow:
                 errors.append(f"pokemon {species_key}: shadowEligible and shadow disagree")
+            for pool_name, pool in (record.get("moves") or {}).items():
+                for move in pool or []:
+                    if not isinstance(move, dict):
+                        continue
+                    move_id = move.get("id", "unknown move")
+                    access = move.get("access")
+                    if move.get("elite") and not isinstance(access, dict):
+                        errors.append(
+                            f"pokemon {species_key} {pool_name}/{move_id}: elite move is missing access metadata"
+                        )
+                        continue
+                    if not isinstance(access, dict):
+                        continue
+                    kind_value = access.get("kind")
+                    learnability = access.get("tmLearnability")
+                    if kind_value == "elite_tm":
+                        if not move.get("elite") or learnability != "elite_only":
+                            errors.append(
+                                f"pokemon {species_key} {pool_name}/{move_id}: elite_tm must be elite_only"
+                            )
+                    elif move.get("elite") or learnability != "none":
+                        errors.append(
+                            f"pokemon {species_key} {pool_name}/{move_id}: non-Elite access must be TM-ineligible"
+                        )
+                    if learnability == "none" and not str(access.get("source") or "").startswith("https://"):
+                        errors.append(
+                            f"pokemon {species_key} {pool_name}/{move_id}: TM-ineligible access requires an HTTPS source"
+                        )
     elif kind == "pvp":
         for league, rankings in (document.get("leagues") or {}).items():
             expected = PVP_LEAGUE_SOURCES.get(league)

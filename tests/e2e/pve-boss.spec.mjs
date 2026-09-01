@@ -245,6 +245,54 @@ test('uses the exact owned form, IVs, level, and stored moves in collection anal
   await expect(page.locator('#bossResults .boss-result-card')).toHaveCount(1);
 });
 
+test('flags an exclusive move in an owned best combination and explains acquisition', async ({ page }) => {
+  desktopOnly(page);
+  await openBossAnalysis(page);
+  const recordId = await seedOwnedAttacker(page, {
+    speciesKey: '376:normal',
+    nickname: '특별 기술 메타그로스',
+    status: 'normal',
+    ivs: { attack: 15, defense: 15, stamina: 15 },
+    level: 40,
+    moves: { fast: 'BULLET_PUNCH', charged: ['METEOR_MASH'] }
+  });
+
+  await selectRayquaza(page);
+  await page.locator('#bossUseCollection').check();
+  await runAnalysis(page);
+
+  const ownedCard = page.locator(`#bossResults .boss-result-card[data-attacker-key="record:${recordId}"]`);
+  await expect(ownedCard).toContainText('불릿펀치 + 코멧펀치');
+  await expect(ownedCard.locator('.boss-move-access.exclusive')).toHaveText('특별 기술');
+  await expect(ownedCard.locator('.boss-move-access.exclusive')).toHaveAttribute('title', '이벤트·특별 진화·대단한 기술머신 · 일반 기술머신으로 배울 수 없음');
+  await expect(ownedCard.locator('.boss-move-access-note')).toContainText('일반 기술머신으로 배울 수 없음');
+  await expect(ownedCard.locator('.boss-move-access-note')).toContainText('이벤트·특별 진화·대단한 기술머신');
+});
+
+test('keeps a stored non-TM move in owned boss analysis and shows its exact route', async ({ page }) => {
+  desktopOnly(page);
+  await openBossAnalysis(page);
+  const recordId = await seedOwnedAttacker(page, {
+    speciesKey: '384:normal',
+    nickname: '운석 레쿠쟈',
+    status: 'normal',
+    ivs: { attack: 15, defense: 15, stamina: 15 },
+    level: 40,
+    moves: { fast: 'AIR_SLASH', charged: ['DRAGON_ASCENT'] }
+  });
+
+  await selectRayquaza(page);
+  await page.locator('#bossUseCollection').check();
+  await runAnalysis(page);
+
+  const ownedCard = page.locator(`#bossResults .boss-result-card[data-attacker-key="record:${recordId}"]`);
+  await expect(ownedCard).toHaveCount(1);
+  await expect(ownedCard).toContainText('에어슬래시 + 화룡점정');
+  await expect(ownedCard).toContainText('저장된 보유 기술');
+  await expect(ownedCard.locator('.boss-move-access.exclusive')).toHaveAttribute('data-access-kind', 'special_item');
+  await expect(ownedCard.locator('.boss-move-access-note')).toContainText('화룡점정: 운석 사용 · 모든 기술머신으로 배울 수 없음');
+});
+
 test('uses supported Shadow status moves without silently replacing the stored move', async ({ page }) => {
   desktopOnly(page);
   await openBossAnalysis(page);
@@ -264,6 +312,8 @@ test('uses supported Shadow status moves without silently replacing the stored m
   const ownedCard = page.locator(`#bossResults .boss-result-card[data-attacker-key="record:${recordId}"]`);
   await expect(ownedCard).toContainText('눈싸라기 + 화풀이');
   await expect(ownedCard).toContainText('저장된 보유 기술');
+  await expect(ownedCard.locator('.boss-move-access.status')).toHaveText('상태 전용');
+  await expect(ownedCard.locator('.boss-move-access-note')).toContainText('화풀이: 그림자 포켓몬 포획 · 모든 기술머신으로 배울 수 없음');
   await expect(ownedCard).not.toContainText('눈사태');
 });
 

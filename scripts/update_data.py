@@ -41,6 +41,95 @@ PVP_MOVE_ID_ALIASES = {
     "PYRO_BALL": "PYROBALL",
 }
 
+# Some high-value attacks are intentionally absent from a Pokemon's normal and
+# Elite TM pools in GAME_MASTER. They are injected by an encounter, item,
+# Fusion, or form-change workflow instead. pokemon-go-api consequently cannot
+# attach them to a form even though the move battle settings exist. Keep this
+# small, reviewed overlay form-specific and derive every battle number from the
+# same PokeMiners snapshot used elsewhere in this builder.
+SPECIAL_MOVE_OVERLAYS = {
+    "384:normal": ({
+        "id": "DRAGON_ASCENT",
+        "ko": "화룡점정",
+        "en": "Dragon Ascent",
+        "accessKind": "special_item",
+        "accessLabel": "운석 사용",
+        "source": "https://pokemongo.com/news/mega-rayquaza-raid-day-2025?hl=en",
+    },),
+    "483:origin": ({
+        "id": "ROAR_OF_TIME",
+        "ko": "시간의포효",
+        "en": "Roar of Time",
+        "accessKind": "event_encounter",
+        "accessLabel": "이벤트 레이드에서 기술 보유 개체 포획",
+        "source": "https://pokemongo.com/news/origin-forme-adventure-effects-dialga-palkia",
+    },),
+    "484:origin": ({
+        "id": "SPACIAL_REND",
+        "ko": "공간절단",
+        "en": "Spacial Rend",
+        "accessKind": "event_encounter",
+        "accessLabel": "이벤트 레이드에서 기술 보유 개체 포획",
+        "source": "https://pokemongo.com/news/origin-forme-adventure-effects-dialga-palkia",
+    },),
+    "646:black": ({
+        "id": "FREEZE_SHOCK",
+        "ko": "프리즈볼트",
+        "en": "Freeze Shock",
+        "accessKind": "fusion",
+        "accessLabel": "얼어붙은세계 보유 큐레무와 제크로무 합체",
+        "source": "https://pokemongo.com/post/fusion-adventure-effects-kyurem?hl=en",
+    },),
+    "646:white": ({
+        "id": "ICE_BURN",
+        "ko": "콜드플레어",
+        "en": "Ice Burn",
+        "accessKind": "fusion",
+        "accessLabel": "얼어붙은세계 보유 큐레무와 레시라무 합체",
+        "source": "https://pokemongo.com/post/fusion-adventure-effects-kyurem?hl=en",
+    },),
+    "800:dusk_mane": ({
+        "id": "SUNSTEEL_STRIKE",
+        "ko": "메테오드라이브",
+        "en": "Sunsteel Strike",
+        "accessKind": "fusion",
+        "accessLabel": "네크로즈마와 솔가레오 합체",
+        "source": "https://pokemongo.com/post/fusion-adventure-effects-necrozma?hl=en",
+    },),
+    "800:dawn_wings": ({
+        "id": "MOONGEIST_BEAM",
+        "ko": "섀도레이",
+        "en": "Moongeist Beam",
+        "accessKind": "fusion",
+        "accessLabel": "네크로즈마와 루나아라 합체",
+        "source": "https://pokemongo.com/post/fusion-adventure-effects-necrozma?hl=en",
+    },),
+    "888:crowned_sword": ({
+        "id": "BEHEMOTH_BLADE",
+        "ko": "거수참",
+        "en": "Behemoth Blade",
+        "accessKind": "form_change",
+        "accessLabel": "아이언헤드 보유 자시안의 검왕 폼 체인지",
+        "source": "https://pokemongo.com/news/crowned-energy-resource-zacian-zamazenta",
+    },),
+    "889:crowned_shield": ({
+        "id": "BEHEMOTH_BASH",
+        "ko": "거수탄",
+        "en": "Behemoth Bash",
+        "accessKind": "form_change",
+        "accessLabel": "아이언헤드 보유 자마젠타의 방패왕 폼 체인지",
+        "source": "https://pokemongo.com/news/crowned-energy-resource-zacian-zamazenta",
+    },),
+}
+
+TYPE_NAMES_KO = {
+    "normal": "노말", "fire": "불꽃", "water": "물", "electric": "전기",
+    "grass": "풀", "ice": "얼음", "fighting": "격투", "poison": "독",
+    "ground": "땅", "flying": "비행", "psychic": "에스퍼", "bug": "벌레",
+    "rock": "바위", "ghost": "고스트", "dragon": "드래곤", "dark": "악",
+    "steel": "강철", "fairy": "페어리",
+}
+
 # The top-level record for these species is a generic or hybrid placeholder.
 # Their named child form is the actual default users can own or evaluate.
 CANONICAL_DEFAULT_FORMS = {
@@ -196,7 +285,7 @@ def compact_type(value):
 
 def compact_move(move, elite: bool, fast: bool):
     combat = move.get("combat") or {}
-    return {
+    output = {
         "id": move["id"].removesuffix("_FAST"),
         "ko": move["names"].get("Korean") or move["names"].get("English"),
         "en": move["names"].get("English"),
@@ -209,6 +298,43 @@ def compact_move(move, elite: bool, fast: bool):
         "pvpEnergy": combat.get("energy") or 0,
         "turns": combat.get("turns") or (1 if not fast else 0),
         "elite": elite,
+    }
+    if elite:
+        output["access"] = {
+            "kind": "elite_tm",
+            "tmLearnability": "elite_only",
+            "label": "이벤트·특별 진화·대단한 기술머신",
+        }
+    return output
+
+
+def compact_special_move(move_settings, combat_move, metadata):
+    move_id = metadata["id"]
+    if move_settings.get("movementId") != move_id or combat_move.get("uniqueId") != move_id:
+        raise RuntimeError(f"Special move settings mismatch for {move_id}")
+    pve_type = move_settings["pokemonType"].replace("POKEMON_TYPE_", "").lower()
+    pvp_type = combat_move["type"].replace("POKEMON_TYPE_", "").lower()
+    if pve_type != pvp_type or pve_type not in TYPE_NAMES_KO:
+        raise RuntimeError(f"Special move type mismatch for {move_id}")
+    return {
+        "id": move_id,
+        "ko": metadata["ko"],
+        "en": metadata["en"],
+        "type": pve_type,
+        "typeKo": TYPE_NAMES_KO[pve_type],
+        "power": int(move_settings.get("power") or 0),
+        "energy": int(move_settings.get("energyDelta") or 0),
+        "duration": int(move_settings.get("durationMs") or 0),
+        "pvpPower": int(combat_move.get("power") or 0),
+        "pvpEnergy": int(combat_move.get("energyDelta") or 0),
+        "turns": int(combat_move.get("durationTurns") or 1),
+        "elite": False,
+        "access": {
+            "kind": metadata["accessKind"],
+            "tmLearnability": "none",
+            "label": metadata["accessLabel"],
+            "source": metadata["source"],
+        },
     }
 
 
@@ -635,6 +761,45 @@ def compact_shadow(settings, rule: str = "standard"):
     }
 
 
+def apply_special_move_overlays(pokemon, game_master):
+    """Attach non-TM distribution moves to the exact forms that can own them."""
+    by_key = {entry["speciesKey"]: entry for entry in pokemon}
+    move_settings = {}
+    combat_moves = {}
+    for template in game_master:
+        data = template.get("data") or {}
+        move = data.get("moveSettings")
+        if move and move.get("movementId"):
+            move_settings[move["movementId"]] = move
+        combat = data.get("combatMove")
+        if combat and combat.get("uniqueId"):
+            combat_moves[combat["uniqueId"]] = combat
+
+    for species_key, overlays in SPECIAL_MOVE_OVERLAYS.items():
+        entry = by_key.get(species_key)
+        if not entry:
+            raise RuntimeError(f"Special move target form missing: {species_key}")
+        charged = entry["moves"]["charged"]
+        for metadata in overlays:
+            move_id = metadata["id"]
+            existing = [move for move in charged if move["id"] == move_id]
+            if existing:
+                raise RuntimeError(
+                    f"Special move {move_id} is now present in the upstream move pool for "
+                    f"{species_key}; review whether its acquisition route is still non-TM"
+                )
+            settings = move_settings.get(move_id)
+            combat = combat_moves.get(move_id)
+            if not settings or not combat:
+                raise RuntimeError(f"Special move battle settings missing: {move_id}")
+            compact = compact_special_move(settings, combat, metadata)
+            if compact["power"] <= 0 or compact["energy"] >= 0 or compact["duration"] <= 0:
+                raise RuntimeError(f"Special move has unusable PvE values: {move_id}")
+            charged.append(compact)
+        if SOURCE_IDS["pokeminers_game_master"] not in entry["sourceRefs"]:
+            entry["sourceRefs"].append(SOURCE_IDS["pokeminers_game_master"])
+
+
 def apply_shadow_data(pokemon, game_master):
     settings_by_id: dict[str, list[dict]] = {}
     for template in game_master:
@@ -678,7 +843,8 @@ def apply_shadow_data(pokemon, game_master):
         if expected_stats != entry["stats"] or gm_types != local_types:
             raise RuntimeError(f"Shadow form fingerprint mismatch for {entry['speciesKey']}")
         entry["shadow"] = compact_shadow(selected)
-        entry["sourceRefs"].append(SOURCE_IDS["pokeminers_game_master"])
+        if SOURCE_IDS["pokeminers_game_master"] not in entry["sourceRefs"]:
+            entry["sourceRefs"].append(SOURCE_IDS["pokeminers_game_master"])
 
         if pokemon_id in {"LUGIA", "HO_OH"} and entry["isDefault"]:
             apex = next(
@@ -699,8 +865,10 @@ def main():
     raw = fetch_json(POKEDEX_URL)
     dynamax, gigantamax = max_capabilities()
     pokemon = build_pokemon(raw, dynamax, gigantamax)
+    game_master = fetch_json(POKEMINERS_GM_URL)
+    apply_special_move_overlays(pokemon, game_master)
     pvp = build_pvp(pokemon)
-    apply_shadow_data(pokemon, fetch_json(POKEMINERS_GM_URL))
+    apply_shadow_data(pokemon, game_master)
     generated_at = rfc3339_now()
     updated = generated_at[:10]
     write_json(DATA_DIR / "pokemon.json", {

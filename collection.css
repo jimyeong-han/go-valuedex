@@ -495,15 +495,77 @@
 .record-ivs label,
 .record-level {
   display: grid !important;
-  grid-template-columns: 38px minmax(0, 1fr) 30px;
+  grid-template-columns: 38px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 7px !important;
 }
 
-.record-ivs input,
+.record-iv-range-wrap,
+.record-level input {
+  width: 100%;
+}
+
+.record-iv-range-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.record-iv-range-wrap input,
 .record-level input {
   width: 100%;
   accent-color: var(--green);
+}
+
+.record-iv-range-wrap input {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
+
+.record-iv-range-ticks {
+  position: absolute;
+  z-index: 2;
+  right: 8px;
+  left: 8px;
+  top: 50%;
+  height: 14px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.record-iv-range-ticks i {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #41504999;
+}
+
+.record-iv-range-ticks i:first-child {
+  left: 33.333333%;
+}
+
+.record-iv-range-ticks i:last-child {
+  left: 66.666667%;
+}
+
+.record-ivs .record-iv-number {
+  width: 44px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .record-ivs output,
@@ -818,6 +880,11 @@
 
   .record-ivs label,
   .record-level {
+    min-height: 44px;
+  }
+
+  .record-iv-range-wrap input,
+  .record-ivs .record-iv-number {
     min-height: 44px;
   }
 
